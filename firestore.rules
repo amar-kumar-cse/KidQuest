@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ──────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isParentOf(taskData) {
+      return isSignedIn() && request.auth.uid == taskData.parentId;
+    }
+
+    function isAssignedKid(taskData) {
+      return isSignedIn() && request.auth.uid == taskData.assignedToUid;
+    }
+
+    // ── Users Collection ──────────────────────────────────────────────
+    // SECURITY:
+    //   - Each user can only read & write their OWN document
+    //   - Kids CANNOT modify XP, streak, or reward counts (only server
+    //     transactions via approveTask() can touch those fields)
+    match /Users/{userId} {
+      allow read: if isUser(userId);
+
+      // Allow a parent to read their linked kids' profiles
+      // (parent stores kid UIDs in their own linkedKids array)
+      allow read: if isSignedIn()
+                  && exists(/databases/$(database)/documents/Users/$(request.auth.uid))
+                  && get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.linkedKids.hasAny([userId]);
+
+      allow create: if isUser(userId);
+
+      // Self-update: block all sensitive XP/game fields from client writes.
+      // These fields are ONLY updated by server-side Firestore Transactions
+      // (approveTask, rejectTask, claimReward) which bypass client rules.
+      allow update: if isUser(userId)
+                    && !request.resource.data.diff(resource.data)
+                       .affectedKeys()
+                       .hasAny([
+                         'totalXp',
+                         'tasksCompleted',
+                         'rewardsClaimed',
+                         'currentStreak',
+                         'bestStreak',
+                         'role',           // role cannot be changed from client
+                       ]);
+    }
+
+    // ── Tasks Collection ─────────────────────────────────────────────
+    // SECURITY:
+    //   - Only the parent who created the task (parentId == uid) can create/delete
+    //   - The assigned kid can read and submit proof (status, proofUrl, completedAt only)
+    //   - Kids CANNOT change XP, difficulty, parentId, or assignedToUid
+    match /Tasks/{taskId} {
+
+      // Read: Parent (their tasks) or assigned Kid
+      allow read: if isParentOf(resource.data) || isAssignedKid(resource.data);
+
+      // Create: Signed-in user creating their own task (parentId must match UID)
+      allow create: if isSignedIn()
+                    && request.auth.uid == request.resource.data.parentId
+                    && request.resource.data.xp is int
+                    && request.resource.data.xp >= 1
+                    && request.resource.data.xp <= 9999
+                    && request.resource.data.status == 'pending';
+
+      // Update:
+      //   Parent: full rights (approve, reject, edit)
+      //   Kid: STRICTLY limited — can only flip status from pending → pending_approval
+      //        and only set proofUrl, bonusXp, completedAt
+      //        CANNOT touch: xp, finalXp, difficulty, parentId, assignedToUid
+      allow update: if isParentOf(resource.data)
+                    || (
+                      isAssignedKid(resource.data)
+                      // Kid can only act when task is still pending
+                      && resource.data.status == 'pending'
+                      // Kid can only set specific fields
+                      && request.resource.data.diff(resource.data)
+                         .affectedKeys()
+                         .hasOnly(['status', 'proofUrl', 'bonusXp', 'completedAt'])
+                      // Kid can only move to pending_approval (not completed/rejected)
+                      && request.resource.data.status == 'pending_approval'
+                    );
+
+      // Delete: Only the parent who owns the task
+      allow delete: if isParentOf(resource.data);
+    }
+
+    // ── FamilyCodes Collection ────────────────────────────────────────
+    // Anyone signed in can read (to verify a code for linking)
+    // Only the code owner (parentId) can delete their code
+    match /FamilyCodes/{code} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.auth.uid == request.resource.data.parentId;
+      allow delete: if isSignedIn()
+                    && request.auth.uid == resource.data.parentId;
+    }
+
+    // ── Rewards Collection ────────────────────────────────────────────
+    // Kids can read; only the owning parent can create/update/delete rewards
+    match /Rewards/{rewardId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.auth.uid == request.resource.data.parentId;
+      allow update: if isSignedIn()
+                    && request.auth.uid == resource.data.parentId;
+      allow delete: if isSignedIn()
+                    && request.auth.uid == resource.data.parentId;
+    }
+
+    // ── Default: Deny everything else ─────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

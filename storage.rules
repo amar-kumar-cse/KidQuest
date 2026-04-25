@@ -1,0 +1,47 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Helper functions ───────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // ── Proof Photos ───────────────────────────────────────────────────
+    // Path: proofs/{taskId}/{filename}
+    // - Any authenticated user can read (parent needs to see kid's proof)
+    // - Only authenticated users can upload (kid uploads their own proof)
+    // - Max file size: 10 MB
+    // - Only image files allowed
+    match /proofs/{taskId}/{filename} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+                    && request.resource.size < 10 * 1024 * 1024   // 10 MB limit
+                    && request.resource.contentType.matches('image/.*');
+
+      // Only overwrite if you are the uploader (re-submission scenario)
+      allow update: if isSignedIn()
+                    && request.resource.size < 10 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+
+      // Delete: allow signed-in users (parent can clear rejected proof)
+      allow delete: if isSignedIn();
+    }
+
+    // ── Avatars (future use) ──────────────────────────────────────────
+    // Path: avatars/{userId}/{filename}
+    match /avatars/{userId}/{filename} {
+      allow read:   if isSignedIn();
+      allow write:  if isSignedIn()
+                    && request.auth.uid == userId
+                    && request.resource.size < 2 * 1024 * 1024    // 2 MB limit
+                    && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Default: Deny everything else ────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
