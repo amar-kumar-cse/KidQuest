@@ -13,11 +13,8 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useAppStore } from '../store/useAppStore';
 import { upsertUserProfile } from '../services/api';
 import GlobalLoadingOverlay from '../components/GlobalLoadingOverlay';
-import {
-  registerForPushNotificationsAsync,
-  scheduleDailyReminder,
-} from '../lib/notificationService';
-import * as Notifications from 'expo-notifications';
+import { scheduleDailyReminder } from '../lib/notificationService';
+import { useNotifications } from '../hooks/useNotifications';
 
 /**
  * Root Layout with Firebase Auth Guard + Zustand State Management.
@@ -34,13 +31,14 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const segments = useSegments();
-  const notifListenerRef = useRef<Notifications.Subscription | null>(null);
 
   const { 
     user, userRole, authLoading, 
     setUser, setRole, setAuthLoading, 
     setKidProfile, setParentProfile, clearStore 
   } = useAppStore();
+
+  useNotifications(user?.uid);
 
   // ── 1. Listen to Firebase auth state ──────────────────────────────
   useEffect(() => {
@@ -90,18 +88,7 @@ export default function RootLayout() {
               linkedKidIds: []
             });
           }
-          // ── Register push notifications & save token ─────────────
-          try {
-            const pushToken = await registerForPushNotificationsAsync();
-            if (pushToken) {
-              await updateDoc(doc(db, 'Users', firebaseUser.uid), {
-                notificationToken: pushToken,
-                pushEnabled: true,
-              });
-            }
-          } catch (pushErr) {
-            console.warn('[_layout] Push token registration failed (non-fatal):', pushErr);
-          }
+
 
           // ── Schedule daily reminder for kids ──────────────────────
           const isKid = (await getDoc(doc(db, 'Users', firebaseUser.uid))).data()?.role === 'kid';
@@ -115,29 +102,12 @@ export default function RootLayout() {
         }
       } else {
         clearStore();
-        // Cancel scheduled notifications on logout
-        if (notifListenerRef.current) {
-          notifListenerRef.current.remove();
-        }
       }
       setAuthLoading(false);
     });
 
-    // ── Notification tap → deep link routing ──────────────────────────
-    notifListenerRef.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const type = response.notification.request.content.data?.type;
-        if (type === 'task_completed') router.push('/(parent)/dashboard');
-        else if (type === 'task_approved' || type === 'task_rejected') router.push('/(kid)/mission-board');
-        else if (type === 'daily_reminder') router.push('/(kid)/mission-board');
-      },
-    );
-
     return () => {
       unsubscribe();
-      if (notifListenerRef.current) {
-        notifListenerRef.current.remove();
-      }
     };
   }, []);
 

@@ -17,7 +17,7 @@ export default function FocusModeScreen() {
   const [focusEnabled, setFocusEnabled] = useState(false);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [selectedDuration, setSelectedDuration] = useState(30); // default 30 min
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
 

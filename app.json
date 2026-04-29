@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "KIdQuest",
-    "slug": "KIdQuest",
+    "name": "KidQuest",
+    "slug": "kidquest",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,17 +9,28 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nowicstudio.kidquest",
+      "infoPlist": {
+        "NSCameraUsageDescription": "KidQuest needs camera access to take task proof photos.",
+        "NSPhotoLibraryUsageDescription": "KidQuest needs photo library access to upload task proof."
+      }
     },
     "android": {
+      "package": "com.nowicstudio.kidquest",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundImage": "./assets/images/android-icon-background.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
     },
     "web": {
       "output": "static",
@@ -34,15 +45,23 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
-          "dark": {
-            "backgroundColor": "#000000"
-          }
+          "dark": { "backgroundColor": "#1a1a2e" }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "KidQuest needs access to your photos to upload task proof."
         }
       ]
     ],
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    },
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     }
   }
 }

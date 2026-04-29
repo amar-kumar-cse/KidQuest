@@ -6,14 +6,16 @@ import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
-import { markTaskDone, getFirebaseErrorMessage } from '../../lib/firestoreService';
+import { taskService } from '../../services/taskService';
+import { authService } from '../../services/authService';
 import { useAppStore } from '../../store/useAppStore';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import MissionCard from '../../components/MissionCard';
 import KidQuestLogo from '../../components/KidQuestLogo';
 import SkeletonLoader from '../../components/SkeletonLoader';
-import { useTasks, AssignedTask } from '../../hooks/useTasks';
+import { useKidTasks } from '../../hooks/useTasks';
+import type { Task } from '../../types';
 import Animated, { FadeInRight, FadeInLeft, Layout } from 'react-native-reanimated';
 
 interface Quest {
@@ -31,16 +33,13 @@ export default function MissionBoard() {
   const { kidProfile } = useAppStore();
   const kidName = kidProfile?.name || 'Kid';
 
-  const { tasks, loading } = useTasks('kid', auth.currentUser?.uid, ['pending', 'pending_approval']);
-  
-  const quests = tasks.filter(t => t.status === 'pending');
-  const waitingApproval = tasks.filter(t => t.status === 'pending_approval');
+  const { pendingTasks: quests, submittedTasks: waitingApproval, isLoading: loading } = useKidTasks(auth.currentUser?.uid);
 
   // Proof submission modal state
   const [proofModalVisible, setProofModalVisible] = useState(false);
   const [proofImageUri, setProofImageUri] = useState<string | null>(null);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
-  const [selectedQuest, setSelectedQuest] = useState<AssignedTask | null>(null);
+  const [selectedQuest, setSelectedQuest] = useState<Task | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // ── Image Picker helpers ───────────────────────────────────────────
@@ -77,7 +76,7 @@ export default function MissionBoard() {
     }
   };
 
-  const openProofModal = (quest: AssignedTask) => {
+  const openProofModal = (quest: Task) => {
     setSelectedQuest(quest);
     setProofImageUri(null);
     setUploadPercent(null);
@@ -89,24 +88,20 @@ export default function MissionBoard() {
     setSubmitting(true);
     setUploadPercent(0);
     try {
-      await markTaskDone(
-        selectedQuest.id,
-        proofImageUri ?? undefined,
-        (pct) => setUploadPercent(pct),
-      );
+      await taskService.submitProof(selectedQuest.id, proofImageUri ?? '');
       setProofModalVisible(false);
       setSelectedQuest(null);
       setProofImageUri(null);
       setUploadPercent(null);
     } catch (err: any) {
       console.error('Error completing task:', err);
-      Alert.alert('Error', getFirebaseErrorMessage(err));
+      Alert.alert('Error', authService.getErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleQuickComplete = (quest: AssignedTask) => {
+  const handleQuickComplete = (quest: Task) => {
     Alert.alert(
       '⚔️ Complete Quest',
       `Mark "${quest.title}" as done?\n\nYou can attach a photo as proof!`,
@@ -117,9 +112,9 @@ export default function MissionBoard() {
           text: '✅ Quick Complete',
           onPress: async () => {
             try {
-              await markTaskDone(quest.id);
+              await taskService.submitProof(quest.id, '');
             } catch (err: any) {
-              Alert.alert('Error', getFirebaseErrorMessage(err));
+              Alert.alert('Error', authService.getErrorMessage(err));
             }
           },
         },

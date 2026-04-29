@@ -1,58 +1,56 @@
-import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { TaskData, TaskStatus } from '../lib/firestoreService';
+import { useEffect } from 'react';
+import { taskService } from '../services/taskService';
+import { useTaskStore } from '../store/useTaskStore';
+import type { Task } from '../types';
 
-export interface AssignedTask extends TaskData {
-  id: string;
-}
+// ─── useTasks Hook (new typed version) ────────────────────────────────────────
 
-export function useTasks(role: 'parent' | 'kid', uid: string | undefined, statuses: TaskStatus[]) {
-  const [tasks, setTasks] = useState<AssignedTask[]>([]);
-  const [loading, setLoading] = useState(true);
+/**
+ * Subscribe to real-time tasks for a parent, storing results in Zustand.
+ */
+export function useParentTasks(parentId: string | null | undefined) {
+  const { setTasks, setLoading, tasks, isLoading } = useTaskStore();
 
   useEffect(() => {
-    if (!uid || statuses.length === 0) {
+    if (!parentId) {
       setLoading(false);
       return;
     }
-
     setLoading(true);
-
-    const baseField = role === 'parent' ? 'parentId' : 'assignedToUid';
-    
-    // Firestore 'in' query works up to 10 items. We use it for statuses array.
-    const q = query(
-      collection(db, 'Tasks'),
-      where(baseField, '==', uid),
-      where('status', 'in', statuses)
-    );
-
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const fetchedTasks: AssignedTask[] = [];
-      querySnapshot.forEach((docSnap) => {
-        fetchedTasks.push({
-          id: docSnap.id,
-          ...docSnap.data(),
-        } as AssignedTask);
-      });
-      
-      // Sort tasks by creation or completion date locally to avoid composite index requirement
-      fetchedTasks.sort((a, b) => {
-        const timeA = a.completedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
-        const timeB = b.completedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
-        return timeB - timeA; // Descending
-      });
-
-      setTasks(fetchedTasks);
-      setLoading(false);
-    }, (error) => {
-      console.error('[useTasks] Error fetching tasks:', error);
+    const unsubscribe = taskService.subscribeToParentTasks(parentId, (tasks) => {
+      setTasks(tasks);
       setLoading(false);
     });
+    return unsubscribe;
+  }, [parentId]);
 
-    return () => unsubscribe();
-  }, [role, uid, JSON.stringify(statuses)]);
+  return { tasks, isLoading };
+}
 
-  return { tasks, loading };
+/**
+ * Subscribe to real-time tasks for a kid, storing results in Zustand.
+ */
+export function useKidTasks(kidId: string | null | undefined) {
+  const { setTasks, setLoading, tasks, isLoading } = useTaskStore();
+
+  useEffect(() => {
+    if (!kidId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const unsubscribe = taskService.subscribeToKidTasks(kidId, (tasks) => {
+      setTasks(tasks);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, [kidId]);
+
+  return {
+    tasks,
+    isLoading,
+    pendingTasks: tasks.filter((t) => t.status === 'pending'),
+    submittedTasks: tasks.filter((t) => t.status === 'pending_approval'),
+    completedTasks: tasks.filter((t) => t.status === 'completed'),
+  };
 }

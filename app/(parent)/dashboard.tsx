@@ -4,8 +4,9 @@ import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
-import { approveTask, rejectTask } from '../../lib/firestoreService';
-import { useTasks, AssignedTask } from '../../hooks/useTasks';
+import { taskService } from '../../services/taskService';
+import { useParentTasks } from '../../hooks/useTasks';
+import type { Task } from '../../types';
 import Animated, { FadeInUp, Layout } from 'react-native-reanimated';
 
 export default function ParentDashboard() {
@@ -15,7 +16,8 @@ export default function ParentDashboard() {
   const [linkedKidsLoading, setLinkedKidsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const { tasks: pendingApprovals, loading: tasksLoading } = useTasks('parent', auth.currentUser?.uid, ['pending_approval']);
+  const { tasks, isLoading: tasksLoading } = useParentTasks(auth.currentUser?.uid);
+  const pendingApprovals = tasks.filter(t => t.status === 'pending_approval');
   const loading = tasksLoading || linkedKidsLoading;
 
   // Fetch parent's linked kids and listen to their XP
@@ -72,7 +74,7 @@ export default function ParentDashboard() {
     };
   }, []);
 
-  const handleApprove = (task: AssignedTask) => {
+  const handleApprove = (task: Task) => {
     const childName = task.assignedTo || 'Kid';
     Alert.alert(
       'Approve Task',
@@ -85,7 +87,7 @@ export default function ParentDashboard() {
           onPress: async () => {
             setActionLoading(task.id);
             try {
-              await approveTask(task.id);
+              await taskService.approveTask(task.id);
             } catch (err) {
               console.error(err);
               alert('Failed to approve task');
@@ -98,7 +100,7 @@ export default function ParentDashboard() {
     );
   };
 
-  const handleReject = (task: AssignedTask) => {
+  const handleReject = (task: Task) => {
     const childName = task.assignedTo || 'Kid';
     Alert.alert(
       'Reject Task',
@@ -111,7 +113,7 @@ export default function ParentDashboard() {
           onPress: async () => {
             setActionLoading(task.id);
             try {
-              await rejectTask(task.id);
+              await taskService.rejectTask(task.id, 'Task rejected by parent');
             } catch (err) {
               console.error(err);
               alert('Failed to reject task');

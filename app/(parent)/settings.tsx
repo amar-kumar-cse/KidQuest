@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, ScrollView, Switch, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { authService } from '../../services/authService';
+import { useAppStore } from '../../store/useAppStore';
 import { auth } from '../../lib/firebase';
 import { registerForPushNotificationsAsync, scheduleDailyReminder, cancelDailyReminder } from '../../lib/notificationService';
 
 export default function ParentSettings() {
   const router = useRouter();
+  const { clearStore } = useAppStore();
   const [pushEnabled, setPushEnabled] = useState(false);
   const [dailyReminder, setDailyReminder] = useState(true);
   const [reminderHour, setReminderHour] = useState(16); // 4 PM
@@ -49,7 +52,8 @@ export default function ParentSettings() {
       {
         text: 'Logout', style: 'destructive', onPress: async () => {
           try {
-            await auth.signOut();
+            await authService.logout();
+            clearStore();
             router.replace('/(auth)/login');
           } catch (err) {
             console.error(err);
@@ -57,6 +61,29 @@ export default function ParentSettings() {
         }
       },
     ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to permanently delete your account? This will erase all tasks, rewards, and un-link your kids. This action CANNOT be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Permanently',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await authService.deleteAccount();
+              clearStore();
+              router.replace('/(auth)/login');
+            } catch (err: any) {
+              Alert.alert('Error', authService.getErrorMessage(err));
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -135,10 +162,16 @@ export default function ParentSettings() {
             <Text className="text-sm text-slate-400 mt-1">{auth.currentUser?.email || 'Not logged in'}</Text>
           </View>
           <TouchableOpacity
-            className="p-5"
+            className="p-5 border-b border-slate-50"
             onPress={handleLogout}
           >
-            <Text className="text-base font-semibold text-red-500">Logout</Text>
+            <Text className="text-base font-semibold text-slate-800">Logout</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="p-5"
+            onPress={handleDeleteAccount}
+          >
+            <Text className="text-base font-semibold text-red-500">Delete Account</Text>
           </TouchableOpacity>
         </View>
 

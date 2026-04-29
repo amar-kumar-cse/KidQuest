@@ -2,41 +2,48 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // ── Helper functions ───────────────────────────────────────────────
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // ── Proof Photos ───────────────────────────────────────────────────
+    // ── Task proof photos ─────────────────────────────────────────────
     // Path: proofs/{taskId}/{filename}
-    // - Any authenticated user can read (parent needs to see kid's proof)
+    // - Any authenticated user can read (parent needs to view kid's proof)
     // - Only authenticated users can upload (kid uploads their own proof)
-    // - Max file size: 10 MB
-    // - Only image files allowed
+    // - Max file size: 10 MB, only images allowed
     match /proofs/{taskId}/{filename} {
-      allow read: if isSignedIn();
+      allow read: if request.auth != null;
 
-      allow create: if isSignedIn()
-                    && request.resource.size < 10 * 1024 * 1024   // 10 MB limit
-                    && request.resource.contentType.matches('image/.*');
+      allow create: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024   // 10 MB limit
+        && request.resource.contentType.matches('image/.*');
 
-      // Only overwrite if you are the uploader (re-submission scenario)
-      allow update: if isSignedIn()
-                    && request.resource.size < 10 * 1024 * 1024
-                    && request.resource.contentType.matches('image/.*');
+      // Allow overwrite for re-submission (same constraints)
+      allow update: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
 
-      // Delete: allow signed-in users (parent can clear rejected proof)
-      allow delete: if isSignedIn();
+      // Parent or kid can delete proof (parent on rejection, kid on resubmit)
+      allow delete: if request.auth != null;
     }
 
-    // ── Avatars (future use) ──────────────────────────────────────────
+    // ── Task-proof alternate path ────────────────────────────────────
+    // Path: task-proofs/{parentId}/{taskId}/{filename}
+    match /task-proofs/{parentId}/{taskId}/{fileName} {
+      allow read: if request.auth != null;
+
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024  // max 10MB
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── User Avatars ─────────────────────────────────────────────────
     // Path: avatars/{userId}/{filename}
+    // - Only the user can upload their own avatar
+    // - Any authenticated user can view avatars
     match /avatars/{userId}/{filename} {
-      allow read:   if isSignedIn();
-      allow write:  if isSignedIn()
-                    && request.auth.uid == userId
-                    && request.resource.size < 2 * 1024 * 1024    // 2 MB limit
-                    && request.resource.contentType.matches('image/.*');
+      allow read: if request.auth != null;
+
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 2 * 1024 * 1024    // 2 MB limit
+        && request.resource.contentType.matches('image/.*');
     }
 
     // ── Default: Deny everything else ────────────────────────────────
