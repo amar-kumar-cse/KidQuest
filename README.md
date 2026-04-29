@@ -1,50 +1,153 @@
-# Welcome to your Expo app 👋
+# 🎯 KidQuest — Kids Routine & Academic Management App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> A cross-platform mobile application built with React Native and Firebase to help students manage daily routines, track academic progress, and stay organized — with a companion school portal for teachers.
 
-## Get started
+![React Native](https://img.shields.io/badge/React_Native-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![Expo](https://img.shields.io/badge/Expo-000020?style=for-the-badge&logo=expo&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
+![NativeWind](https://img.shields.io/badge/NativeWind-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## ✨ What is KidQuest?
 
-2. Start the app
+KidQuest is a mobile-first productivity app designed for school students. It helps kids build healthy daily habits, track academic tasks, and stay on top of their routines — all in one place. A companion **School Portal** allows teachers to manage and monitor student progress.
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## 🚀 Key Features
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+| Feature | Description |
+|---|---|
+| 📅 **Daily Routine Tracker** | Students can set and track daily tasks and habits |
+| 📚 **Academic Progress** | Subject-wise task tracking and completion monitoring |
+| 🔔 **Push Notifications** | Expo Notifications for reminders and alerts |
+| 🗣️ **Text-to-Speech** | Expo Speech integration for audio task reading |
+| 📸 **Image Uploads** | Expo Image Picker for profile and assignment photos |
+| 🏫 **School Portal** | Dedicated teacher/admin portal for student management |
+| 📱 **Offline Support** | AsyncStorage for local data persistence |
+| 🎨 **Modern UI** | NativeWind (Tailwind CSS) + Linear Gradient + Haptics |
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+---
 
-## Get a fresh project
+## 🛠️ Tech Stack
 
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+Language        : TypeScript
+Framework       : React Native (Expo SDK 54)
+Routing         : Expo Router (file-based)
+Database        : Firebase Firestore
+Auth            : Firebase Auth
+State           : Zustand
+Styling         : NativeWind (Tailwind CSS for RN)
+Navigation      : React Navigation (Bottom Tabs)
+Notifications   : Expo Notifications
+Speech          : Expo Speech
+Animations      : React Native Reanimated
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+## 📁 Project Structure
 
-To learn more about developing your project with Expo, look at the following resources:
+```
+KidQuest/
+├── app/                  # Expo Router pages (file-based routing)
+│   ├── (tabs)/           # Bottom tab screens
+│   ├── _layout.tsx       # Root layout
+│   └── index.tsx         # Entry screen
+├── components/           # Reusable UI components
+├── constants/            # Theme colors, fonts, config
+├── hooks/                # Custom React hooks
+├── lib/                  # Firebase setup & utilities
+├── services/             # Firestore API calls & business logic
+├── store/                # Zustand global state management
+├── school-portal/        # Teacher/admin web portal
+├── assets/images/        # App images and icons
+├── firestore.rules       # Firebase security rules
+├── storage.rules         # Firebase storage rules
+├── tailwind.config.js    # NativeWind configuration
+└── app.json              # Expo configuration
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+---
 
-## Join the community
+## ⚡ Getting Started
 
-Join our community of developers creating universal apps.
+### Prerequisites
+- Node.js v18+
+- Expo CLI
+- Firebase project ([console.firebase.google.com](https://console.firebase.google.com))
+- Expo Go app on your phone
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Installation
+
+```bash
+# Clone the repo
+git clone https://github.com/amar-kumar-cse/KidQuest.git
+cd KidQuest
+
+# Install dependencies
+npm install
+
+# Setup Firebase config in lib/firebase.ts
+# Add your Firebase project credentials
+
+# Start the app
+npx expo start
+```
+
+### Run on Device
+```bash
+npx expo start --android   # Android
+npx expo start --ios       # iOS
+npx expo start --web       # Web browser
+```
+
+Scan the QR code with **Expo Go** app to run on your phone instantly.
+
+---
+
+## 🔥 Firebase Setup
+
+1. Create a project at [Firebase Console](https://console.firebase.google.com)
+2. Enable **Firestore Database** and **Authentication**
+3. Add your config to `lib/firebase.ts`:
+
+```typescript
+const firebaseConfig = {
+  apiKey: "your-api-key",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id"
+};
+```
+
+---
+
+## 🗺️ Roadmap
+
+- [x] Daily routine tracker
+- [x] Firebase Firestore integration
+- [x] Push notifications
+- [x] School portal for teachers
+- [x] NativeWind UI
+- [ ] Gamification — badges and rewards
+- [ ] Parent dashboard
+- [ ] AI-powered study suggestions
+
+---
+
+## 👨‍💻 Author
+
+**Amar Kumar**
+- 🔗 GitHub: [@amar-kumar-cse](https://github.com/amar-kumar-cse)
+- 💼 LinkedIn: [linkedin.com/in/amarkumarr](https://linkedin.com/in/amarkumarr)
+- 📧 Email: amarkrydav@gmail.com
+
+---
+
+## ⭐ Drop a star if you find this helpful! 🙏
