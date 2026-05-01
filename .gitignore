@@ -42,3 +42,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Logs
+*.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+

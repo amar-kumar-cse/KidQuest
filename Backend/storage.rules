@@ -1,0 +1,57 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Task proof photos ─────────────────────────────────────────────
+    // Path: proofs/{familyId}/{taskId}.jpg
+    // - Only users in the same family can read
+    // - Only the assigned kid may upload
+    // - Max file size: 5 MB, only images allowed, strict path naming
+    match /proofs/{familyId}/{taskId}.{ext} {
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.familyId == familyId
+        && get(/databases/$(database)/documents/Tasks/$(taskId)).data.familyId == familyId;
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == get(/databases/$(database)/documents/Tasks/$(taskId)).data.assignedToUid
+        && get(/databases/$(database)/documents/Tasks/$(taskId)).data.familyId == familyId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*')
+        && ext.matches('jpg|jpeg|png');
+
+      allow delete: if request.auth != null && (
+        request.auth.uid == get(/databases/$(database)/documents/Tasks/$(taskId)).data.assignedToUid ||
+        get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.familyId ==
+          get(/databases/$(database)/documents/Tasks/$(taskId)).data.familyId
+      );
+    }
+
+    // ── Task-proof alternate path ────────────────────────────────────
+    // Path: task-proofs/{parentId}/{taskId}/{filename}
+    match /task-proofs/{parentId}/{taskId}/{fileName} {
+      allow read: if request.auth != null;
+
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024  // max 10MB
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── User Avatars ─────────────────────────────────────────────────
+    // Path: avatars/{userId}/{filename}
+    // - Only the user can upload their own avatar
+    // - Any authenticated user can view avatars
+    match /avatars/{userId}/{filename} {
+      allow read: if request.auth != null;
+
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 2 * 1024 * 1024    // 2 MB limit
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Default: Deny everything else ────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
