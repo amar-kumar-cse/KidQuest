@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "frontend:start": "cd frontend && npm run start",
-    "frontend:ios": "cd frontend && npm run ios",
-    "frontend:android": "cd frontend && npm run android",
-    "frontend:typecheck": "cd frontend && npm run type-check",
-    "backend:functions:build": "cd backend/functions && npm run build",
-    "backend:functions:serve": "cd backend && npx firebase emulators:start --only functions,firestore,auth",
+    "frontend:start": "cd Frontend && npm run start",
+    "frontend:ios": "cd Frontend && npm run ios",
+    "frontend:android": "cd Frontend && npm run android",
+    "frontend:typecheck": "cd Frontend && npm run type-check",
+    "backend:functions:build": "cd Backend/functions && npm run build",
+    "backend:functions:serve": "cd Backend && npx firebase emulators:start --only functions,firestore,auth",
     "dev": "concurrently \"npm:frontend:start\" \"npm:backend:functions:serve\""
   },
   "devDependencies": {
