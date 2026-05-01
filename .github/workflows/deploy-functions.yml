@@ -2,9 +2,9 @@ name: Deploy Cloud Functions
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
-      - 'functions/**'
+      - 'Backend/functions/**'
 
 jobs:
   deploy:
@@ -22,12 +22,13 @@ jobs:
         run: npm install -g firebase-tools
 
       - name: Install functions dependencies
-        run: cd functions && npm ci
+        run: cd Backend/functions && npm ci
 
       - name: Build Cloud Functions (TypeScript)
-        run: cd functions && npm run build
+        run: cd Backend/functions && npm run build
 
       - name: Deploy to Firebase
         run: firebase deploy --only functions --project ${{ secrets.FIREBASE_PROJECT_ID }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
