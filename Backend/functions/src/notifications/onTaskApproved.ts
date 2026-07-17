@@ -1,9 +1,12 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import axios from 'axios';
 
 /**
  * Firestore trigger: When a task's status changes to 'completed',
- * send a push notification to the kid.
+ * send a push notification to the kid via Expo Push API.
+ *
+ * This fires automatically when the parent approves a task via Cloud Function.
  */
 export const onTaskApproved = functions.firestore
   .document('Tasks/{taskId}')
@@ -16,34 +19,53 @@ export const onTaskApproved = functions.firestore
       return null;
     }
 
-    const kidSnap = await admin
-      .firestore()
-      .collection('Users')
-      .doc(after.assignedToUid)
-      .get();
+    const kidUid = after.assignedToUid;
+    if (!kidUid) return null;
 
-    const kid = kidSnap.data();
-    const token = kid?.fcmToken ?? kid?.notificationToken;
-    if (!token) return null;
+    const db = admin.firestore();
 
-    const xpAwarded = after.finalXp ?? after.xp;
+    // Fetch kid's push token
+    const kidSnap = await db.collection('Users').doc(kidUid).get();
+    if (!kidSnap.exists) return null;
 
-    try {
-      await admin.messaging().send({
-        token,
-        notification: {
+    const kid = kidSnap.data()!;
+    const pushToken = kid.expoPushToken;
+    const xpAwarded = after.finalXp ?? after.xp ?? 0;
+
+    // Create in-app notification
+    const notifRef = db.collection('Notifications').doc();
+    await notifRef.set({
+      recipientId: kidUid,
+      type: 'task_approved',
+      taskId: context.params.taskId,
+      xpAwarded,
+      title: '🎉 Task Approved!',
+      body: `You earned ${xpAwarded} XP for "${after.title}"! Keep it up! 🚀`,
+      createdAt: admin.firestore.Timestamp.now(),
+      isRead: false,
+      familyId: after.familyId || null,
+    });
+
+    // Send Expo push notification (best-effort)
+    if (pushToken && typeof pushToken === 'string') {
+      try {
+        await axios.post('https://exp.host/--/api/v2/push/send', {
+          to: pushToken,
+          sound: 'default',
           title: '🎉 Task Approved!',
           body: `You earned ${xpAwarded} XP for "${after.title}"! Keep it up! 🚀`,
-        },
-        data: {
-          taskId: context.params.taskId,
-          type: 'task_approved',
-        },
-        android: { priority: 'high' },
-        apns: { payload: { aps: { sound: 'default' } } },
-      });
-    } catch (err) {
-      console.error('[onTaskApproved] FCM send failed:', err);
+          data: {
+            taskId: context.params.taskId,
+            type: 'task_approved',
+            xp: xpAwarded,
+          },
+        }, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 5000,
+        });
+      } catch (err: any) {
+        console.error('[onTaskApproved] Expo push send failed:', err?.toString?.() || err);
+      }
     }
 
     return null;

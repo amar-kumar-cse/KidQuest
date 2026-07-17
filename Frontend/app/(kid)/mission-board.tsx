@@ -8,6 +8,7 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { db, auth } from '../../lib/firebase';
 import { taskService } from '../../services/taskService';
 import { authService } from '../../services/authService';
+import { storageService } from '../../services/storageService';
 import { useAppStore } from '../../store/useAppStore';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +16,7 @@ import MissionCard from '../../components/MissionCard';
 import KidQuestLogo from '../../components/KidQuestLogo';
 import SkeletonLoader from '../../components/SkeletonLoader';
 import { useKidTasks } from '../../hooks/useTasks';
+import { useNotifications } from '../../hooks/useNotifications';
 import type { Task } from '../../types';
 import Animated, { FadeInRight, FadeInLeft, Layout } from 'react-native-reanimated';
 
@@ -34,6 +36,7 @@ export default function MissionBoard() {
   const kidName = kidProfile?.name || 'Kid';
 
   const { pendingTasks: quests, submittedTasks: waitingApproval, isLoading: loading } = useKidTasks(auth.currentUser?.uid);
+  const { unreadCount } = useNotifications();
 
   // Proof submission modal state
   const [proofModalVisible, setProofModalVisible] = useState(false);
@@ -88,7 +91,17 @@ export default function MissionBoard() {
     setSubmitting(true);
     setUploadPercent(0);
     try {
-      await taskService.submitProof(selectedQuest.id, proofImageUri ?? '');
+      let proofUrl = '';
+
+      if (proofImageUri) {
+        proofUrl = await storageService.uploadProofPhoto(
+          proofImageUri,
+          selectedQuest.id,
+          ({ percentage }) => setUploadPercent(percentage),
+        );
+      }
+
+      await taskService.submitProof(selectedQuest.id, proofUrl);
       setProofModalVisible(false);
       setSelectedQuest(null);
       setProofImageUri(null);
@@ -137,8 +150,16 @@ export default function MissionBoard() {
           {kidName ? `${kidName}'s Quests` : 'Quest Map'}
         </Text>
 
-        <TouchableOpacity className="w-10 h-10 bg-white rounded-xl items-center justify-center shadow-sm">
+        <TouchableOpacity 
+          className="w-10 h-10 bg-white rounded-xl items-center justify-center shadow-sm relative"
+          onPress={() => router.push('/(kid)/notifications' as any)}
+        >
           <Ionicons name="notifications-outline" size={20} color="#000080" />
+          {unreadCount > 0 && (
+            <View className="absolute -top-1 -right-1 bg-red-500 w-4 h-4 rounded-full items-center justify-center border border-white">
+              <Text className="text-white text-[8px] font-bold">{unreadCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 

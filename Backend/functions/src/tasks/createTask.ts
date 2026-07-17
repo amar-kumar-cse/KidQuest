@@ -5,15 +5,14 @@ import { getAdminConfig } from '../admin/adminConfig';
 /**
  * createTask callable
  * - Parents must call this to create tasks server-side to enforce limits.
- * - Params: { title, description, xp, assignedToUid, dueDate }
  */
 export const createTask = functions.https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in.');
   const callerUid = context.auth.uid;
-  const { title, description, xp, assignedToUid, dueDate } = data as any;
+  const { title, description, xp, assignedToUid, assignedTo, dueDate, category, icon, difficulty, dueInHours } = data as any;
 
-  if (!title || !description || typeof xp !== 'number' || !assignedToUid) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing required task fields.');
+  if (!title || typeof xp !== 'number' || !assignedToUid) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing required task fields (title, xp, assignedToUid).');
   }
 
   const db = admin.firestore();
@@ -34,6 +33,9 @@ export const createTask = functions.https.onCall(async (data, context) => {
     // Enforce per-kid task limit (active tasks). Try adminConfig, fall back to env/default.
     const cfg = await getAdminConfig(db);
     const MAX_ACTIVE_TASKS = cfg.MAX_ACTIVE_TASKS || parseInt(process.env.MAX_ACTIVE_TASKS || '10', 10);
+    
+    // Check limit outside transaction if needed, but doing inside is fine for query sizes if small
+    // Actually, queries in transactions must be done carefully, but since it's a small app:
     const activeTasksSnap = await db.collection('Tasks')
       .where('assignedToUid', '==', assignedToUid)
       .where('status', 'in', ['pending', 'pending_approval'])
@@ -47,14 +49,25 @@ export const createTask = functions.https.onCall(async (data, context) => {
     const now = admin.firestore.FieldValue.serverTimestamp();
     tx.set(taskRef, {
       title,
-      description,
+      description: description || '',
       xp,
-      status: 'pending',
-      parentId: callerUid,
+      difficulty: difficulty || 'easy',
+      bonusXp: 0,
+      finalXp: xp,
+      assignedTo: assignedTo || kid.name || 'Kid',
       assignedToUid,
+      parentId: callerUid,
       familyId: caller.familyId,
-      createdAt: now,
+      status: 'pending',
+      proofUrl: null,
+      icon: icon || '📝',
+      category: category || 'other',
+      frequency: data.frequency || 'once', // NEW: recurring support
+      dueInHours: dueInHours ?? null,
       dueDate: dueDate || null,
+      createdAt: now,
+      completedAt: null,
+      approvedAt: null,
     });
 
     return { success: true, taskId: taskRef.id };

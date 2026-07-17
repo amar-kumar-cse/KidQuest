@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteAccount = exports.onUserDeleted = exports.onTaskApproved = exports.onTaskSubmitted = exports.sendInactivityNudges = exports.resetDailyStreaks = exports.verifyFamilyCode = exports.claimReward = exports.completeTaskTransaction = exports.verifyProof = exports.suggestTasks = exports.processTaskApproval = exports.rejectTask = exports.approveTask = void 0;
+exports.processDeletionJob = exports.deleteAccount = exports.onUserDeleted = exports.onTaskApproved = exports.onTaskSubmitted = exports.sendInactivityNudges = exports.resetDailyStreaks = exports.generateFamilyCode = exports.verifyFamilyCode = exports.claimReward = exports.completeTaskTransaction = exports.verifyProof = exports.suggestTasks = exports.createTask = exports.processTaskApproval = exports.rejectTask = exports.approveTask = void 0;
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
 // Export all callable functions
@@ -43,6 +43,8 @@ var rejectTask_1 = require("./tasks/rejectTask");
 Object.defineProperty(exports, "rejectTask", { enumerable: true, get: function () { return rejectTask_1.rejectTask; } });
 var processTaskApproval_1 = require("./tasks/processTaskApproval");
 Object.defineProperty(exports, "processTaskApproval", { enumerable: true, get: function () { return processTaskApproval_1.processTaskApproval; } });
+var createTask_1 = require("./tasks/createTask");
+Object.defineProperty(exports, "createTask", { enumerable: true, get: function () { return createTask_1.createTask; } });
 var suggestTasks_1 = require("./ai/suggestTasks");
 Object.defineProperty(exports, "suggestTasks", { enumerable: true, get: function () { return suggestTasks_1.suggestTasks; } });
 var verifyProof_1 = require("./ai/verifyProof");
@@ -55,6 +57,8 @@ Object.defineProperty(exports, "claimReward", { enumerable: true, get: function 
 // Export family functions
 var verifyFamilyCode_1 = require("./family/verifyFamilyCode");
 Object.defineProperty(exports, "verifyFamilyCode", { enumerable: true, get: function () { return verifyFamilyCode_1.verifyFamilyCode; } });
+var generateFamilyCode_1 = require("./family/generateFamilyCode");
+Object.defineProperty(exports, "generateFamilyCode", { enumerable: true, get: function () { return generateFamilyCode_1.generateFamilyCode; } });
 // Scheduled
 var resetDailyStreaks_1 = require("./scheduled/resetDailyStreaks");
 Object.defineProperty(exports, "resetDailyStreaks", { enumerable: true, get: function () { return resetDailyStreaks_1.resetDailyStreaks; } });
@@ -70,4 +74,6 @@ var onUserDeleted_1 = require("./users/onUserDeleted");
 Object.defineProperty(exports, "onUserDeleted", { enumerable: true, get: function () { return onUserDeleted_1.onUserDeleted; } });
 var deleteAccount_1 = require("./users/deleteAccount");
 Object.defineProperty(exports, "deleteAccount", { enumerable: true, get: function () { return deleteAccount_1.deleteAccount; } });
+var processDeletionJob_1 = require("./users/processDeletionJob");
+Object.defineProperty(exports, "processDeletionJob", { enumerable: true, get: function () { return processDeletionJob_1.processDeletionJob; } });
 //# sourceMappingURL=index.js.map

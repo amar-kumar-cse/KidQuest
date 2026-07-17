@@ -51,93 +51,22 @@ exports.deleteAccount = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('unauthenticated', 'Must be logged in.');
     const uid = context.auth.uid;
     const db = admin.firestore();
-    const bucket = admin.storage?.().bucket?.();
-    // Verify user exists
+    // Verify user exists (optional) and create a DeletionJob
     const userRef = db.collection('Users').doc(uid);
     const userSnap = await userRef.get();
-    if (!userSnap.exists) {
-        // Still allow deleting auth user even if profile missing
-        try {
-            await admin.auth().deleteUser(uid);
-        }
-        catch (e) {
-            // ignore
-        }
-        return { success: true, message: 'User profile not found; attempted auth deletion.' };
-    }
-    const userData = userSnap.data();
+    const userData = userSnap.exists ? userSnap.data() : {};
     const familyId = userData.familyId || null;
-    // Helper to delete collection documents by query in batches
-    async function deleteQueryBatch(collectionPath, query) {
-        const snapshot = await query.limit(500).get();
-        if (snapshot.empty)
-            return 0;
-        const batch = db.batch();
-        snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-        await batch.commit();
-        return snapshot.size;
-    }
-    try {
-        // Delete Tasks where assignedToUid == uid or parentId == uid
-        let removed = 0;
-        do {
-            removed = await deleteQueryBatch('Tasks', db.collection('Tasks').where('assignedToUid', '==', uid));
-        } while (removed > 0);
-        do {
-            removed = await deleteQueryBatch('Tasks', db.collection('Tasks').where('parentId', '==', uid));
-        } while (removed > 0);
-        // Notifications
-        do {
-            removed = await deleteQueryBatch('Notifications', db.collection('Notifications').where('recipientId', '==', uid));
-        } while (removed > 0);
-        // AISuggestions
-        do {
-            removed = await deleteQueryBatch('AISuggestions', db.collection('AISuggestions').where('requestedBy', '==', uid));
-        } while (removed > 0);
-        // AIVerifications
-        do {
-            removed = await deleteQueryBatch('AIVerifications', db.collection('AIVerifications').where('requestedBy', '==', uid));
-        } while (removed > 0);
-        // RewardClaims where kidId or parentId == uid
-        do {
-            removed = await deleteQueryBatch('RewardClaims', db.collection('RewardClaims').where('kidId', '==', uid));
-        } while (removed > 0);
-        do {
-            removed = await deleteQueryBatch('RewardClaims', db.collection('RewardClaims').where('parentId', '==', uid));
-        } while (removed > 0);
-        // Delete user doc
-        await userRef.delete();
-        // Storage: best-effort deletions for avatars and proofs with uid in path
-        if (bucket) {
-            try {
-                // avatars/{uid} prefix
-                await bucket.deleteFiles({ prefix: `avatars/${uid}` });
-            }
-            catch (e) {
-                console.warn('Failed to delete avatar files', e && e.toString());
-            }
-            try {
-                // proofs/{familyId}/{taskId_uidpattern}
-                if (familyId) {
-                    await bucket.deleteFiles({ prefix: `proofs/${familyId}/` });
-                }
-            }
-            catch (e) {
-                console.warn('Failed to delete proof files', e && e.toString());
-            }
-        }
-        // Finally, delete auth user
-        try {
-            await admin.auth().deleteUser(uid);
-        }
-        catch (e) {
-            console.warn('Failed to delete auth user', e && e.toString());
-        }
-        return { success: true };
-    }
-    catch (err) {
-        console.error('deleteAccount failed', err);
-        throw new functions.https.HttpsError('internal', 'Account deletion failed');
-    }
+    const jobRef = db.collection('DeletionJobs').doc();
+    const now = admin.firestore.Timestamp.now();
+    await jobRef.set({
+        uid,
+        familyId,
+        requestedBy: uid,
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now,
+    });
+    // Return job id so client may poll for status
+    return { success: true, jobId: jobRef.id, message: 'Deletion job queued' };
 });
 //# sourceMappingURL=deleteAccount.js.map

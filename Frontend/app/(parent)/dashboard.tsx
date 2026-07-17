@@ -8,6 +8,7 @@ import { taskService } from '../../services/taskService';
 import { useParentTasks } from '../../hooks/useTasks';
 import type { Task } from '../../types';
 import Animated, { FadeInUp, Layout } from 'react-native-reanimated';
+import { useNotifications } from '../../hooks/useNotifications';
 
 export default function ParentDashboard() {
   const router = useRouter();
@@ -87,7 +88,7 @@ export default function ParentDashboard() {
           onPress: async () => {
             setActionLoading(task.id);
             try {
-              await taskService.approveTask(task.id);
+              await taskService.approveTask(task.id, task.assignedToUid);
             } catch (err) {
               console.error(err);
               alert('Failed to approve task');
@@ -137,6 +138,8 @@ export default function ParentDashboard() {
     return icons[category] || '📝';
   };
 
+  const { unreadCount } = useNotifications();
+
   return (
     <SafeAreaView className="flex-1 bg-slate-50">
       <ScrollView className="px-6 pt-8 pb-20">
@@ -147,12 +150,25 @@ export default function ParentDashboard() {
             <Text className="text-sm font-semibold text-slate-500 uppercase tracking-widest">Control Center</Text>
             <Text className="text-3xl font-extrabold text-slate-800 mt-1">Dashboard</Text>
           </View>
-          <TouchableOpacity 
-            className="w-12 h-12 bg-indigo-100 rounded-full items-center justify-center border border-indigo-200"
-            onPress={() => router.push('/(parent)/settings')}
-          >
-            <Text className="text-lg">⚙️</Text>
-          </TouchableOpacity>
+          <View className="flex-row">
+            <TouchableOpacity 
+              className="w-12 h-12 bg-white rounded-full items-center justify-center border border-slate-100 mr-2 relative"
+              onPress={() => router.push('/(parent)/notifications' as any)}
+            >
+              <Text className="text-xl">🔔</Text>
+              {unreadCount > 0 && (
+                <View className="absolute top-0 right-0 bg-red-500 w-5 h-5 rounded-full items-center justify-center border-2 border-white">
+                  <Text className="text-white text-[10px] font-bold">{unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className="w-12 h-12 bg-indigo-100 rounded-full items-center justify-center border border-indigo-200"
+              onPress={() => router.push('/(parent)/settings')}
+            >
+              <Text className="text-lg">⚙️</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Analytics Cards */}
@@ -186,13 +202,31 @@ export default function ParentDashboard() {
           ))}
           
           {linkedKids.length === 0 && !linkedKidsLoading && (
-            <View className="bg-amber-50 p-5 rounded-2xl border border-amber-100 mr-4">
-              <Text className="text-amber-700 font-semibold mb-1">No Kids Linked</Text>
+            <View className="bg-indigo-900 p-6 rounded-3xl border border-indigo-800 shadow-xl w-[320px]">
+              <Text className="text-3xl mb-3">👋</Text>
+              <Text className="text-white font-black text-xl mb-2">Welcome to KidQuest!</Text>
+              <Text className="text-indigo-200 text-sm leading-5 mb-5">
+                Let's get your family set up. First, generate a Family Code and enter it on your kid's device to link their account.
+              </Text>
+              <View className="space-y-3 mb-5">
+                <View className="flex-row items-center">
+                  <View className="w-6 h-6 rounded-full bg-indigo-700 items-center justify-center mr-3">
+                    <Text className="text-white text-xs font-bold">1</Text>
+                  </View>
+                  <Text className="text-indigo-100 font-medium">Go to Settings</Text>
+                </View>
+                <View className="flex-row items-center">
+                  <View className="w-6 h-6 rounded-full bg-indigo-700 items-center justify-center mr-3">
+                    <Text className="text-white text-xs font-bold">2</Text>
+                  </View>
+                  <Text className="text-indigo-100 font-medium">Generate Family Code</Text>
+                </View>
+              </View>
               <TouchableOpacity 
-                className="mt-2 bg-amber-200 py-1.5 px-3 rounded-lg self-start"
+                className="bg-amber-400 py-3 px-4 rounded-xl items-center shadow-sm w-full"
                 onPress={() => router.push('/(parent)/settings')}
               >
-                <Text className="text-amber-800 text-xs font-bold">Link a Kid →</Text>
+                <Text className="text-indigo-900 font-black text-sm">Get Started →</Text>
               </TouchableOpacity>
             </View>
           )}

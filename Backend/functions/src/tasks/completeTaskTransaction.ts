@@ -4,21 +4,25 @@ import axios from 'axios';
 
 /**
  * completeTaskTransaction
- * - Params: { taskId, childUid, xpValue }
+ * - Params: { taskId, childUid }
  * - Verifies caller is a parent and in same family as child
- * - Uses transaction to mark task 'approved' and increment child's totalXp atomically
+ * - Uses transaction to mark task 'completed' and increment child's totalXp atomically
  * - Updates streak if applicable
  * - Idempotent: if task already approved/completed, returns alreadyProcessed
  * - Sends Expo push via HTTP (best-effort)
+ *
+ * NOTE: This is a unified approval function. The frontend should call either
+ *       this OR `approveTask` — both do the same thing. This one reads XP from
+ *       the task document itself (task.xp) instead of requiring it as a parameter.
  */
 export const completeTaskTransaction = functions.https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in.');
 
   const callerUid = context.auth.uid;
-  const { taskId, childUid, xpValue } = data as { taskId?: string; childUid?: string; xpValue?: number };
+  const { taskId, childUid } = data as { taskId?: string; childUid?: string };
 
-  if (!taskId || !childUid || typeof xpValue !== 'number') {
-    throw new functions.https.HttpsError('invalid-argument', 'taskId, childUid and numeric xpValue are required.');
+  if (!taskId || !childUid) {
+    throw new functions.https.HttpsError('invalid-argument', 'taskId and childUid are required.');
   }
 
   const db = admin.firestore();
@@ -26,7 +30,7 @@ export const completeTaskTransaction = functions.https.onCall(async (data, conte
   const childRef = db.collection('Users').doc(childUid);
   const taskRef = db.collection('Tasks').doc(taskId);
 
-  return await db.runTransaction(async (tx) => {
+  const result = await db.runTransaction(async (tx) => {
     const [callerSnap, childSnap, taskSnap] = await Promise.all([
       tx.get(callerRef),
       tx.get(childRef),
@@ -47,10 +51,14 @@ export const completeTaskTransaction = functions.https.onCall(async (data, conte
 
     // Idempotency: check if already approved/completed
     if (task.status === 'completed' || task.approvedAt || task.status === 'approved') {
-      return { success: true, alreadyProcessed: true };
+      return { success: true, alreadyProcessed: true, xpAwarded: 0 };
     }
 
-    const nowDate = new Date();
+    const xpValue = typeof task.xp === 'number' ? task.xp : 0;
+    const bonusXp = typeof task.bonusXp === 'number' ? task.bonusXp : 0;
+    const totalXpAward = xpValue + bonusXp;
+
+    const now = admin.firestore.Timestamp.now();
 
     // Streak logic
     const lastCompletedAt: admin.firestore.Timestamp | undefined = child.lastCompletedAt;
@@ -77,39 +85,57 @@ export const completeTaskTransaction = functions.https.onCall(async (data, conte
     // Update task and child atomically
     tx.update(taskRef, {
       status: 'completed',
-      approvedAt: nowDate,
+      finalXp: totalXpAward,
+      approvedAt: now,
       approvedBy: callerUid,
-      updatedAt: nowDate,
+      updatedAt: now,
     });
 
     tx.update(childRef, {
-      totalXp: (child.totalXp || 0) + xpValue,
-      tasksCompleted: (child.tasksCompleted || 0) + 1,
-      lastCompletedAt: nowDate,
+      totalXp: admin.firestore.FieldValue.increment(totalXpAward),
+      tasksCompleted: admin.firestore.FieldValue.increment(1),
+      lastCompletedAt: now,
       currentStreak: newStreak,
       bestStreak: bestStreak,
     });
 
-      // Fire-and-forget notification to Expo push API
-    const pushToken = child.expoPushToken;
-    if (pushToken && typeof pushToken === 'string') {
-      const payload = {
-        to: pushToken,
-        sound: 'default',
-        title: 'Great job!',
-        body: `Great job! You earned ${xpValue} points!`,
-        data: { taskId, xp: xpValue },
-      };
-
-      setTimeout(async () => {
-        try {
-          await axios.post('https://exp.host/--/api/v2/push/send', payload, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-        } catch (err) {
-          console.warn('Expo push failed:', err && err.toString ? err.toString() : err);
-        }
-      }, 0);
-    }
-
-      return { success: true, xpAwarded: xpValue };
+    // In-app notification
+    const notifRef = db.collection('Notifications').doc();
+    tx.set(notifRef, {
+      recipientId: childUid,
+      type: 'task_approved',
+      taskId,
+      xpAwarded: totalXpAward,
+      title: 'Task Approved! 🎉',
+      body: `You earned ${totalXpAward} XP for "${task.title || 'a task'}"!`,
+      createdAt: now,
+      isRead: false,
+      by: callerUid,
+      familyId: caller.familyId,
     });
+
+    return { success: true, xpAwarded: totalXpAward };
   });
+
+  // Send Expo push notification to child (best-effort, outside transaction)
+  if (result.xpAwarded && result.xpAwarded > 0) {
+    try {
+      const childSnap = await db.collection('Users').doc(childUid).get();
+      const childData = childSnap.exists ? childSnap.data() : null;
+      const pushToken = childData?.expoPushToken;
+      if (pushToken && typeof pushToken === 'string') {
+        await axios.post('https://exp.host/--/api/v2/push/send', {
+          to: pushToken,
+          sound: 'default',
+          title: '🎉 Task Approved!',
+          body: `Great job! You earned ${result.xpAwarded} XP!`,
+          data: { type: 'task_approved', taskId },
+        }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
+      }
+    } catch (err: any) {
+      console.warn('[completeTaskTransaction] Expo push failed:', err?.toString?.() || err);
+    }
+  }
+
+  return result;
+});

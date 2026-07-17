@@ -1,6 +1,7 @@
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, storage } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, storage, functions } from '../lib/firebase';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -121,37 +122,13 @@ export async function linkKidToParent(
   code: string
 ): Promise<{ success: boolean; parentId?: string; error?: string }> {
   try {
-    const codeRef = doc(db, 'FamilyCodes', code.toUpperCase().trim());
-    const codeSnap = await getDoc(codeRef);
-
-    if (!codeSnap.exists()) {
-      return { success: false, error: 'Invalid invite code. Please ask your parent for a new one.' };
+    const verifyFn = httpsCallable<{ code: string }, { success: boolean; parentId?: string; error?: string }>(functions, 'verifyFamilyCode');
+    const result = await verifyFn({ code });
+    if (result.data.success) {
+      return { success: true, parentId: result.data.parentId };
+    } else {
+      return { success: false, error: result.data.error || 'Invalid or expired code.' };
     }
-
-    const { parentId, expiresAt } = codeSnap.data();
-
-    // Check expiry
-    if (expiresAt && expiresAt.toDate() < new Date()) {
-      return { success: false, error: 'This invite code has expired. Ask your parent for a new one.' };
-    }
-
-    // Link kid to parent in Firestore
-    await updateDoc(doc(db, 'Users', kidUid), {
-      linkedParentId: parentId,
-    });
-
-    // Add kid to parent's linkedKidIds array
-    const parentSnap = await getDoc(doc(db, 'Users', parentId));
-    if (parentSnap.exists()) {
-      const existingKids: string[] = parentSnap.data().linkedKidIds || [];
-      if (!existingKids.includes(kidUid)) {
-        await updateDoc(doc(db, 'Users', parentId), {
-          linkedKidIds: [...existingKids, kidUid],
-        });
-      }
-    }
-
-    return { success: true, parentId };
   } catch (error: any) {
     console.error('[linkKidToParent] Error:', error);
     return { success: false, error: error.message || 'Linking failed. Please try again.' };
@@ -163,20 +140,12 @@ export async function linkKidToParent(
  * Stores it in Firestore with a 24-hour expiry.
  */
 export async function generateFamilyCode(parentUid: string): Promise<string> {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No ambiguous chars (0/O, 1/I)
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  try {
+    const generateFn = httpsCallable<any, { success: boolean; code: string }>(functions, 'generateFamilyCode');
+    const result = await generateFn();
+    return result.data.code;
+  } catch (error: any) {
+    console.error('[generateFamilyCode] Error:', error);
+    throw new Error(error.message || 'Failed to generate family code.');
   }
-
-  const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + 24);
-
-  await setDoc(doc(db, 'FamilyCodes', code), {
-    parentId: parentUid,
-    createdAt: serverTimestamp(),
-    expiresAt,
-  });
-
-  return code;
 }

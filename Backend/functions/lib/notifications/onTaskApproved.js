@@ -32,13 +32,19 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onTaskApproved = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
+const axios_1 = __importDefault(require("axios"));
 /**
  * Firestore trigger: When a task's status changes to 'completed',
- * send a push notification to the kid.
+ * send a push notification to the kid via Expo Push API.
+ *
+ * This fires automatically when the parent approves a task via Cloud Function.
  */
 exports.onTaskApproved = functions.firestore
     .document('Tasks/{taskId}')
@@ -49,33 +55,51 @@ exports.onTaskApproved = functions.firestore
     if (before.status === after.status || after.status !== 'completed') {
         return null;
     }
-    const kidSnap = await admin
-        .firestore()
-        .collection('Users')
-        .doc(after.assignedToUid)
-        .get();
-    const kid = kidSnap.data();
-    const token = kid?.fcmToken ?? kid?.notificationToken;
-    if (!token)
+    const kidUid = after.assignedToUid;
+    if (!kidUid)
         return null;
-    const xpAwarded = after.finalXp ?? after.xp;
-    try {
-        await admin.messaging().send({
-            token,
-            notification: {
+    const db = admin.firestore();
+    // Fetch kid's push token
+    const kidSnap = await db.collection('Users').doc(kidUid).get();
+    if (!kidSnap.exists)
+        return null;
+    const kid = kidSnap.data();
+    const pushToken = kid.expoPushToken;
+    const xpAwarded = after.finalXp ?? after.xp ?? 0;
+    // Create in-app notification
+    const notifRef = db.collection('Notifications').doc();
+    await notifRef.set({
+        recipientId: kidUid,
+        type: 'task_approved',
+        taskId: context.params.taskId,
+        xpAwarded,
+        title: '🎉 Task Approved!',
+        body: `You earned ${xpAwarded} XP for "${after.title}"! Keep it up! 🚀`,
+        createdAt: admin.firestore.Timestamp.now(),
+        isRead: false,
+        familyId: after.familyId || null,
+    });
+    // Send Expo push notification (best-effort)
+    if (pushToken && typeof pushToken === 'string') {
+        try {
+            await axios_1.default.post('https://exp.host/--/api/v2/push/send', {
+                to: pushToken,
+                sound: 'default',
                 title: '🎉 Task Approved!',
                 body: `You earned ${xpAwarded} XP for "${after.title}"! Keep it up! 🚀`,
-            },
-            data: {
-                taskId: context.params.taskId,
-                type: 'task_approved',
-            },
-            android: { priority: 'high' },
-            apns: { payload: { aps: { sound: 'default' } } },
-        });
-    }
-    catch (err) {
-        console.error('[onTaskApproved] FCM send failed:', err);
+                data: {
+                    taskId: context.params.taskId,
+                    type: 'task_approved',
+                    xp: xpAwarded,
+                },
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 5000,
+            });
+        }
+        catch (err) {
+            console.error('[onTaskApproved] Expo push send failed:', err?.toString?.() || err);
+        }
     }
     return null;
 });

@@ -40,15 +40,14 @@ const adminConfig_1 = require("../admin/adminConfig");
 /**
  * createTask callable
  * - Parents must call this to create tasks server-side to enforce limits.
- * - Params: { title, description, xp, assignedToUid, dueDate }
  */
 exports.createTask = functions.https.onCall(async (data, context) => {
     if (!context.auth)
         throw new functions.https.HttpsError('unauthenticated', 'Must be logged in.');
     const callerUid = context.auth.uid;
-    const { title, description, xp, assignedToUid, dueDate } = data;
-    if (!title || !description || typeof xp !== 'number' || !assignedToUid) {
-        throw new functions.https.HttpsError('invalid-argument', 'Missing required task fields.');
+    const { title, description, xp, assignedToUid, assignedTo, dueDate, category, icon, difficulty, dueInHours } = data;
+    if (!title || typeof xp !== 'number' || !assignedToUid) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing required task fields (title, xp, assignedToUid).');
     }
     const db = admin.firestore();
     const callerRef = db.collection('Users').doc(callerUid);
@@ -68,6 +67,8 @@ exports.createTask = functions.https.onCall(async (data, context) => {
         // Enforce per-kid task limit (active tasks). Try adminConfig, fall back to env/default.
         const cfg = await (0, adminConfig_1.getAdminConfig)(db);
         const MAX_ACTIVE_TASKS = cfg.MAX_ACTIVE_TASKS || parseInt(process.env.MAX_ACTIVE_TASKS || '10', 10);
+        // Check limit outside transaction if needed, but doing inside is fine for query sizes if small
+        // Actually, queries in transactions must be done carefully, but since it's a small app:
         const activeTasksSnap = await db.collection('Tasks')
             .where('assignedToUid', '==', assignedToUid)
             .where('status', 'in', ['pending', 'pending_approval'])
@@ -79,14 +80,24 @@ exports.createTask = functions.https.onCall(async (data, context) => {
         const now = admin.firestore.FieldValue.serverTimestamp();
         tx.set(taskRef, {
             title,
-            description,
+            description: description || '',
             xp,
-            status: 'pending',
-            parentId: callerUid,
+            difficulty: difficulty || 'easy',
+            bonusXp: 0,
+            finalXp: xp,
+            assignedTo: assignedTo || kid.name || 'Kid',
             assignedToUid,
+            parentId: callerUid,
             familyId: caller.familyId,
-            createdAt: now,
+            status: 'pending',
+            proofUrl: null,
+            icon: icon || '📝',
+            category: category || 'other',
+            dueInHours: dueInHours ?? null,
             dueDate: dueDate || null,
+            createdAt: now,
+            completedAt: null,
+            approvedAt: null,
         });
         return { success: true, taskId: taskRef.id };
     });

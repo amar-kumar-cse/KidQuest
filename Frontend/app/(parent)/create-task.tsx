@@ -28,6 +28,7 @@ export default function CreateTask() {
   const [xp,          setXp]          = useState('100');
   const [category,    setCategory]    = useState<TaskCategory>('other');
   const [difficulty,  setDifficulty]  = useState<TaskDifficulty>('easy');
+  const [frequency,   setFrequency]   = useState<'once'|'daily'|'weekly'>('once');
   const [dueInHours,  setDueInHours]  = useState('');
   const [loading,     setLoading]     = useState(false);
 
@@ -89,6 +90,7 @@ export default function CreateTask() {
         assignedToUid: selectedKid.uid,
         category,
         icon      : selectedCategory.icon,
+        frequency,
         dueInHours: dueInHours ? parseFloat(dueInHours) : undefined,
       });
       router.back();
@@ -188,6 +190,28 @@ export default function CreateTask() {
             <Text className="text-xs text-slate-400 mt-1 ml-1">
               Harder tasks earn more XP (Easy×1, Medium×1.5, Hard×2)
             </Text>
+          </View>
+
+          {/* Frequency */}
+          <View>
+            <Text className="text-sm font-semibold text-slate-500 mb-2 ml-1">Frequency</Text>
+            <View className="flex-row space-x-2">
+              {['once', 'daily', 'weekly'].map((f) => (
+                <TouchableOpacity
+                  key={f}
+                  onPress={() => setFrequency(f as any)}
+                  className={`flex-1 py-3 rounded-xl border items-center capitalize ${
+                    frequency === f
+                      ? 'bg-indigo-50 border-indigo-400'
+                      : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <Text className={`text-sm font-bold ${
+                    frequency === f ? 'text-indigo-700' : 'text-slate-600'
+                  }`}>{f}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           {/* XP + Due In */}

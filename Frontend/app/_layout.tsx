@@ -38,8 +38,6 @@ export default function RootLayout() {
     setKidProfile, setParentProfile, clearStore 
   } = useAppStore();
 
-  useNotifications(user?.uid);
-
   // ── 1. Listen to Firebase auth state ──────────────────────────────
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {

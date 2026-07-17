@@ -51,7 +51,7 @@ export default function TaskDetailScreen() {
           onPress: async () => {
             setActioning(true);
             try {
-              await taskService.approveTask(task.id, bonus);
+              await taskService.approveTask(task.id, task.assignedToUid);
               Alert.alert('✅ Approved!', `${task.xp + bonus} XP awarded!`);
             } catch (err: any) {
               Alert.alert('Error', err.message);

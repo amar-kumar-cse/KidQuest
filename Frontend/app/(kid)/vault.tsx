@@ -64,7 +64,7 @@ export default function TheVault() {
               // For MVP, find the kid's UID from the listener
               // In production, use auth.currentUser?.uid
               const kidUid = auth.currentUser?.uid || '';
-              const success = await claimReward(kidUid, reward.cost);
+              const success = await claimReward(kidUid, reward.cost, reward.id);
               
               if (success) {
                 Alert.alert('🎉 Reward Claimed!', `You unlocked "${reward.title}"! Show this to your parent.`);

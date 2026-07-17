@@ -3,21 +3,19 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // ── Task proof photos ─────────────────────────────────────────────
-    // Path: proofs/{familyId}/{taskId}.jpg
+    // Path: proofs/{taskId}/{fileName}
     // - Only users in the same family can read
     // - Only the assigned kid may upload
-    // - Max file size: 5 MB, only images allowed, strict path naming
-    match /proofs/{familyId}/{taskId}.{ext} {
+    // - Max file size: 10 MB, only images allowed
+    match /proofs/{taskId}/{fileName} {
       allow read: if request.auth != null
-        && get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.familyId == familyId
-        && get(/databases/$(database)/documents/Tasks/$(taskId)).data.familyId == familyId;
+        && get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.familyId ==
+           get(/databases/$(database)/documents/Tasks/$(taskId)).data.familyId;
 
       allow create, update: if request.auth != null
         && request.auth.uid == get(/databases/$(database)/documents/Tasks/$(taskId)).data.assignedToUid
-        && get(/databases/$(database)/documents/Tasks/$(taskId)).data.familyId == familyId
         && request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*')
-        && ext.matches('jpg|jpeg|png');
+        && request.resource.contentType.matches('image/.*');
 
       allow delete: if request.auth != null && (
         request.auth.uid == get(/databases/$(database)/documents/Tasks/$(taskId)).data.assignedToUid ||

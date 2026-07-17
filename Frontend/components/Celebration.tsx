@@ -1,64 +1,76 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
-import LottieView from 'lottie-react-native';
-import ConfettiCannon from 'react-native-confetti-cannon';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
 
-// Celebration component with haptic + sound + confetti + lottie.
-// Props:
-// - play: whether to play
-// - soundAsset: optional local require(...) sound asset
-// - onComplete: callback when celebration ends
+type CelebrationProps = {
+  play?: boolean;
+  onComplete?: () => void;
+};
 
-export default function Celebration({ play = true, soundAsset, onComplete }: { play?: boolean; soundAsset?: any; onComplete?: () => void }) {
-  const soundRef = useRef<Audio.Sound | null>(null);
+const confettiColors = ['#22C55E', '#F59E0B', '#0EA5E9', '#EF4444', '#8B5CF6'];
+
+export default function Celebration({ play = true, onComplete }: CelebrationProps) {
+  const scale = useRef(new Animated.Value(0.8)).current;
+  const fade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    let mounted = true;
+    if (!play) return;
 
-    // Haptic feedback (best-effort)
     try {
       Haptics.selectionAsync();
-    } catch (e) {
-      // ignore
+    } catch {
+      // Best effort only.
     }
 
-    // Play sound if provided
-    (async () => {
-      if (!soundAsset) return;
-      try {
-        const { sound } = await Audio.Sound.createAsync(soundAsset);
-        soundRef.current = sound;
-        await sound.playAsync();
-      } catch (e) {
-        console.warn('Celebration sound failed', e);
-      }
-    })();
+    Animated.parallel([
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 700,
+        easing: Easing.out(Easing.back(1.5)),
+        useNativeDriver: true,
+      }),
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
-    // Cleanup after 3.5s and call onComplete
-    const t = setTimeout(() => {
-      if (mounted) onComplete && onComplete();
-    }, 3500);
+    const timer = setTimeout(() => {
+      onComplete?.();
+    }, 2200);
 
-    return () => {
-      mounted = false;
-      clearTimeout(t);
-      if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(() => {});
-      }
-    };
-  }, [soundAsset]);
+    return () => clearTimeout(timer);
+  }, [fade, onComplete, play, scale]);
+
+  if (!play) return null;
 
   return (
     <View style={styles.container} pointerEvents="none">
-      {play && (
-        <LottieView source={require('../assets/lottie/celebration.json')} autoPlay loop={false} style={styles.lottie} />
-      )}
-      {play && <ConfettiCannon count={120} origin={{ x: -10, y: 0 }} />}
+      <Animated.View
+        style={[
+          styles.burst,
+          {
+            opacity: fade,
+            transform: [{ scale }],
+          },
+        ]}
+      >
+        {confettiColors.map((color, index) => (
+          <View key={color + index} style={[styles.confetti, { backgroundColor: color }, positions[index]]} />
+        ))}
+      </Animated.View>
     </View>
   );
 }
+
+const positions = [
+  { top: 6, left: 24, transform: [{ rotate: '18deg' }] },
+  { top: 20, right: 18, transform: [{ rotate: '-14deg' }] },
+  { bottom: 26, left: 10, transform: [{ rotate: '-32deg' }] },
+  { bottom: 14, right: 14, transform: [{ rotate: '26deg' }] },
+  { top: 42, left: 56, transform: [{ rotate: '8deg' }] },
+];
 
 const styles = StyleSheet.create({
   container: {
@@ -67,8 +79,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 9999,
   },
-  lottie: {
-    width: 300,
-    height: 300,
+  burst: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  confetti: {
+    position: 'absolute',
+    width: 18,
+    height: 10,
+    borderRadius: 999,
   },
 });

@@ -9,7 +9,8 @@ import {
   increment,
   Timestamp,
 } from 'firebase/firestore';
-import { db, auth } from './firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, auth, functions } from './firebase';
 import {
   notifyParentTaskCompleted,
   notifyKidTaskApproved,
@@ -47,15 +48,17 @@ export interface TaskData {
 }
 
 export interface CreateTaskInput {
-  title         : string;
-  description?  : string;
-  xp            : number;
-  difficulty?   : TaskDifficulty;
-  assignedTo?   : string;
-  assignedToUid?: string;
-  category?     : TaskCategory;
-  icon?         : string;
-  dueInHours?   : number;
+  title: string;
+  description?: string;
+  xp: number;
+  assignedTo: string;
+  assignedToUid: string;
+  dueDate?: Date;
+  category?: string;
+  icon?: string;
+  difficulty?: string;
+  dueInHours?: number;
+  frequency?: 'once' | 'daily' | 'weekly';
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -115,37 +118,29 @@ export function calculateTimeBonusXp(
 
 // ─── Task CRUD ───────────────────────────────────────────────────────
 
-/**
- * Parent creates a task.
- * Queries on kid side use assignedToUid (not name) for reliable real-time sync.
- */
 export async function createTask(input: CreateTaskInput): Promise<string> {
-  const parentId = requireAuth();
+  requireAuth();
   if (!input.title?.trim()) throw new Error('Task title is required.');
   if (input.xp < 1 || input.xp > 9999) throw new Error('XP must be between 1 and 9999.');
 
-  const taskData: TaskData = {
-    title        : input.title.trim(),
-    description  : input.description?.trim() || '',
-    xp           : input.xp,
-    difficulty   : input.difficulty || 'easy',
-    bonusXp      : 0,
-    finalXp      : input.xp, // provisional — recalculated on approval
-    assignedTo   : input.assignedTo?.trim() || 'Kid',
-    assignedToUid: input.assignedToUid || '',
-    parentId,
-    status       : 'pending',
-    proofUrl     : null,
-    icon         : input.icon || '📝',
-    category     : input.category || 'other',
-    dueInHours   : input.dueInHours ?? null,
-    createdAt    : serverTimestamp(),
-    completedAt  : null,
-    approvedAt   : null,
-  };
+  const createFn = httpsCallable<any, { success: boolean; taskId: string }>(functions, 'createTask');
 
-  const docRef = await addDoc(collection(db, 'Tasks'), taskData);
-  return docRef.id;
+  try {
+    const result = await createFn({
+      title: input.title.trim(),
+      description: input.description?.trim() || '',
+      xp: input.xp,
+      difficulty: input.difficulty || 'easy',
+      assignedTo: input.assignedTo?.trim() || 'Kid',
+      assignedToUid: input.assignedToUid || '',
+      icon: input.icon || '📝',
+      category: input.category || 'other',
+      dueInHours: input.dueInHours ?? null,
+    });
+    return result.data.taskId;
+  } catch (error: any) {
+    throw new Error(getFirebaseErrorMessage(error));
+  }
 }
 
 /**
@@ -207,98 +202,37 @@ export async function markTaskDone(
 
 /**
  * Parent approves a task.
- * Reward Engine Formula:
- *   finalXp = round(baseXp × difficultyMultiplier) + streakBonus + bonusXp
- * Atomically updates task, kid XP, and kid streak in one Firestore transaction.
+ * Atomic update handled on backend via Cloud Function.
  */
 export async function approveTask(taskId: string): Promise<void> {
   if (!taskId) throw new Error('Task ID is required.');
+  
+  // To avoid changing all callers of firestoreService.approveTask, we will lookup childUid here.
+  const taskSnap = await getDoc(doc(db, 'Tasks', taskId));
+  if (!taskSnap.exists()) throw new Error('Task not found.');
+  const childUid = taskSnap.data().assignedToUid;
 
-  await runTransaction(db, async (transaction) => {
-    const taskRef  = doc(db, 'Tasks', taskId);
-    const taskSnap = await transaction.get(taskRef);
-    if (!taskSnap.exists()) throw new Error('Task not found.');
-
-    const data = taskSnap.data();
-    if (data.status !== 'pending_approval') {
-      throw new Error('Task is not currently pending approval.');
-    }
-
-    const kidUid   = data.assignedToUid as string;
-    let   finalXp  = data.xp; // safe fallback
-
-    if (kidUid) {
-      const kidRef  = doc(db, 'Users', kidUid);
-      const kidSnap = await transaction.get(kidRef);
-
-      if (kidSnap.exists()) {
-        const kidData      = kidSnap.data();
-        const currentStreak = kidData.currentStreak || 0;
-        const difficulty    = (data.difficulty as TaskDifficulty) || 'easy';
-        const bonusXp       = data.bonusXp || 0;
-
-        // ── Reward Engine Formula ──────────────────────────────────
-        finalXp = calculateFinalXp(data.xp, difficulty, currentStreak) + bonusXp;
-
-        const newStreak = currentStreak + 1;
-        transaction.update(kidRef, {
-          totalXp       : increment(finalXp),
-          tasksCompleted: increment(1),
-          currentStreak : newStreak,
-          bestStreak    : Math.max(kidData.bestStreak || 0, newStreak),
-        });
-      } else {
-        console.warn(`[approveTask] Kid UID ${kidUid} not found — XP not awarded.`);
-      }
-    }
-
-    transaction.update(taskRef, {
-      status    : 'completed' as TaskStatus,
-      finalXp,
-      approvedAt: serverTimestamp(),
-    });
-
-    notifyKidTaskApproved(data.title, finalXp).catch((e) =>
-      console.warn('[Notification] Failed to notify kid:', e),
-    );
-  });
+  const approveFn = httpsCallable<{ taskId: string; childUid: string }, { success: boolean }>(functions, 'completeTaskTransaction');
+  try {
+    await approveFn({ taskId, childUid });
+  } catch (error: any) {
+    throw new Error(getFirebaseErrorMessage(error));
+  }
 }
 
 /**
- * Parent rejects a task — resets kid's streak, sends task back to pending.
+ * Parent rejects a task.
+ * Handled via Cloud Function.
  */
 export async function rejectTask(taskId: string): Promise<void> {
   if (!taskId) throw new Error('Task ID is required.');
-
-  await runTransaction(db, async (transaction) => {
-    const taskRef  = doc(db, 'Tasks', taskId);
-    const taskSnap = await transaction.get(taskRef);
-    if (!taskSnap.exists()) throw new Error('Task not found.');
-
-    const data = taskSnap.data();
-    if (data.status !== 'pending_approval') throw new Error('Task is not pending approval.');
-
-    transaction.update(taskRef, {
-      status     : 'pending' as TaskStatus,
-      proofUrl   : null,
-      bonusXp    : 0,
-      completedAt: null,
-    });
-
-    // Reset streak on rejection
-    const kidUid = data.assignedToUid as string;
-    if (kidUid) {
-      const kidRef  = doc(db, 'Users', kidUid);
-      const kidSnap = await transaction.get(kidRef);
-      if (kidSnap.exists()) {
-        transaction.update(kidRef, { currentStreak: 0 });
-      }
-    }
-
-    notifyKidTaskRejected(data.title).catch((e) =>
-      console.warn('[Notification] Failed to notify kid on reject:', e),
-    );
-  });
+  
+  const rejectFn = httpsCallable<{ taskId: string; parentNote: string }, { success: boolean }>(functions, 'rejectTask');
+  try {
+    await rejectFn({ taskId, parentNote: '' });
+  } catch (error: any) {
+    throw new Error(getFirebaseErrorMessage(error));
+  }
 }
 
 // ─── User / XP Functions ─────────────────────────────────────────────
@@ -315,28 +249,19 @@ export async function getKidPoints(kidUid: string): Promise<number> {
 }
 
 /**
- * Claims a reward by atomically deducting XP.
+ * Claims a reward by calling Cloud Function.
  * Returns true on success, false if insufficient balance.
  */
-export async function claimReward(kidUid: string, cost: number): Promise<boolean> {
-  if (!kidUid) throw new Error('Invalid user ID.');
-  if (cost < 0)  throw new Error('Reward cost cannot be negative.');
+export async function claimReward(kidUid: string, cost: number, rewardId?: string): Promise<boolean> {
+  if (!rewardId) throw new Error('Invalid reward ID.');
+  
+  const claimFn = httpsCallable<{ rewardId: string }, { success: boolean }>(functions, 'claimReward');
   try {
-    await runTransaction(db, async (transaction) => {
-      const userRef  = doc(db, 'Users', kidUid);
-      const userSnap = await transaction.get(userRef);
-      if (!userSnap.exists()) throw new Error('User not found.');
-      const currentXp = userSnap.data().totalXp || 0;
-      if (currentXp < cost) throw new Error('INSUFFICIENT_XP');
-      transaction.update(userRef, {
-        totalXp       : currentXp - cost,
-        rewardsClaimed: increment(1),
-      });
-    });
+    await claimFn({ rewardId });
     return true;
   } catch (error: any) {
-    if (error.message === 'INSUFFICIENT_XP') return false;
-    throw error;
+    if (error.message && error.message.includes('Not enough XP')) return false;
+    throw new Error(getFirebaseErrorMessage(error));
   }
 }
 

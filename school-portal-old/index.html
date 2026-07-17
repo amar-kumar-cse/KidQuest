@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KidQuest School Portal</title>
+  <meta name="description" content="KidQuest B2B School Portal — Manage students, assign bulk tasks, and track progress across your entire school." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="login-screen" class="screen active">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-brand">
+          <span class="login-logo">🎓</span>
+          <h1>KidQuest</h1>
+          <p class="login-subtitle">School Portal</p>
+        </div>
+        <form id="login-form" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label for="login-email">School Email</label>
+            <input type="email" id="login-email" placeholder="admin@school.edu" required />
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn-primary btn-full" id="login-btn">
+            Sign In
+          </button>
+          <p class="login-hint">Demo: admin@school.edu / password123</p>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard-screen" class="screen">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-icon">🎓</span>
+        <div>
+          <h2>KidQuest</h2>
+          <span class="brand-tag">School Portal</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="overview" onclick="switchView('overview')">
+          <span class="nav-icon">📊</span> Overview
+        </button>
+        <button class="nav-item" data-view="students" onclick="switchView('students')">
+          <span class="nav-icon">👨‍🎓</span> Students
+        </button>
+        <button class="nav-item" data-view="classes" onclick="switchView('classes')">
+          <span class="nav-icon">🏫</span> Classes
+        </button>
+        <button class="nav-item" data-view="tasks" onclick="switchView('tasks')">
+          <span class="nav-icon">📝</span> Bulk Tasks
+        </button>
+        <button class="nav-item" data-view="notices" onclick="switchView('notices')">
+          <span class="nav-icon">📢</span> Notices
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="admin-badge">
+          <span class="admin-avatar">👤</span>
+          <div>
+            <strong>School Admin</strong>
+            <small>admin@school.edu</small>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="handleLogout()">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Overview -->
+      <section id="view-overview" class="view active">
+        <div class="view-header">
+          <h1>Dashboard Overview</h1>
+          <p class="view-subtitle">Welcome back! Here's your school at a glance.</p>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card stat-blue">
+            <span class="stat-icon">👨‍🎓</span>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-students">0</span>
+              <span class="stat-label">Total Students</span>
+            </div>
+          </div>
+          <div class="stat-card stat-purple">
+            <span class="stat-icon">🏫</span>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-classes">0</span>
+              <span class="stat-label">Active Classes</span>
+            </div>
+          </div>
+          <div class="stat-card stat-green">
+            <span class="stat-icon">✅</span>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-completion">0%</span>
+              <span class="stat-label">Avg. Completion</span>
+            </div>
+          </div>
+          <div class="stat-card stat-gold">
+            <span class="stat-icon">📝</span>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-tasks">0</span>
+              <span class="stat-label">Active Tasks</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="overview-grid">
+          <div class="card">
+            <h3>📈 Recent Activity</h3>
+            <div id="recent-activity" class="activity-list"></div>
+          </div>
+          <div class="card">
+            <h3>🏆 Top Performers</h3>
+            <div id="top-performers" class="performers-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Students -->
+      <section id="view-students" class="view">
+        <div class="view-header">
+          <h1>Student Management</h1>
+          <button class="btn-primary" onclick="showAddStudentModal()">+ Add Student</button>
+        </div>
+        <div class="search-bar">
+          <input type="text" id="student-search" placeholder="Search students by name or class..." oninput="filterStudents()" />
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Class</th>
+                <th>XP</th>
+                <th>Tasks Done</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="students-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Classes -->
+      <section id="view-classes" class="view">
+        <div class="view-header">
+          <h1>Class Management</h1>
+          <button class="btn-primary" onclick="showAddClassModal()">+ Add Class</button>
+        </div>
+        <div class="classes-grid" id="classes-grid"></div>
+      </section>
+
+      <!-- Bulk Tasks -->
+      <section id="view-tasks" class="view">
+        <div class="view-header">
+          <h1>Bulk Task Assignment</h1>
+          <p class="view-subtitle">Assign tasks to entire classes or the whole school at once.</p>
+        </div>
+        <div class="card task-builder">
+          <h3>📝 Create Bulk Task</h3>
+          <form id="bulk-task-form" onsubmit="handleBulkTask(event)">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="task-title">Task Title</label>
+                <input type="text" id="task-title" placeholder="e.g. Math Homework Ch. 5" required />
+              </div>
+              <div class="form-group">
+                <label for="task-xp">XP Reward</label>
+                <input type="number" id="task-xp" placeholder="50" min="10" max="500" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="task-desc">Description</label>
+              <textarea id="task-desc" rows="3" placeholder="Describe the task..."></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="task-category">Category</label>
+                <select id="task-category">
+                  <option value="homework">📚 Homework</option>
+                  <option value="reading">📖 Reading</option>
+                  <option value="sports">⚽ Sports</option>
+                  <option value="creative">🎨 Creative</option>
+                  <option value="chores">🧹 Chores</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="task-target">Assign To</label>
+                <select id="task-target">
+                  <option value="all">🏫 All Students</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="btn-primary">🚀 Assign to All</button>
+          </form>
+        </div>
+        <div class="card">
+          <h3>📋 Recent Bulk Tasks</h3>
+          <div id="bulk-task-history"></div>
+        </div>
+      </section>
+
+      <!-- Notices -->
+      <section id="view-notices" class="view">
+        <div class="view-header">
+          <h1>Notices & Announcements</h1>
+          <p class="view-subtitle">Send announcements to parents and students through the KidQuest app.</p>
+        </div>
+        <div class="card">
+          <h3>📢 Send Notice</h3>
+          <form id="notice-form" onsubmit="handleNotice(event)">
+            <div class="form-group">
+              <label for="notice-title">Title</label>
+              <input type="text" id="notice-title" placeholder="e.g. Parent-Teacher Meeting" required />
+            </div>
+            <div class="form-group">
+              <label for="notice-body">Message</label>
+              <textarea id="notice-body" rows="4" placeholder="Write your announcement here..." required></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="notice-priority">Priority</label>
+                <select id="notice-priority">
+                  <option value="normal">🔵 Normal</option>
+                  <option value="important">🟡 Important</option>
+                  <option value="urgent">🔴 Urgent</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="notice-target">Send To</label>
+                <select id="notice-target">
+                  <option value="all">Everyone</option>
+                  <option value="parents">Parents Only</option>
+                  <option value="students">Students Only</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="btn-primary">📤 Send Notice</button>
+          </form>
+        </div>
+        <div class="card">
+          <h3>📜 Sent Notices</h3>
+          <div id="notice-history"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Add Student Modal -->
+  <div id="modal-backdrop" class="modal-backdrop" onclick="closeModals()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2 id="modal-title">Add Student</h2>
+        <button class="modal-close" onclick="closeModals()">&times;</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

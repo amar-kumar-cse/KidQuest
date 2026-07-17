@@ -123,9 +123,9 @@ export const taskService = {
   /**
    * Approve a task via Cloud Function (handles XP + streak transaction).
    */
-  async approveTask(taskId: string, bonusXp: number = 0): Promise<void> {
-    const fn = httpsCallable(functions, 'approveTask');
-    await fn({ taskId, bonusXp });
+  async approveTask(taskId: string, childUid: string): Promise<void> {
+    const fn = httpsCallable(functions, 'completeTaskTransaction');
+    await fn({ taskId, childUid });
   },
 
   /**

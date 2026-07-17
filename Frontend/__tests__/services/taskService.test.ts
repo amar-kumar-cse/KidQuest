@@ -55,7 +55,7 @@ describe('taskService', () => {
   describe('approveTask', () => {
     it('calls the approveTask Cloud Function', async () => {
       const { httpsCallable } = require('firebase/functions');
-      await taskService.approveTask('task-123', 10);
+      await taskService.approveTask('task-123', 'child-123');
       expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'approveTask');
     });
   });
