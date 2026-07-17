@@ -12,12 +12,14 @@ export interface KidProfile {
   tasksCompleted: number;
   linkedParentId: string | null;
   avatarEmoji: string;
+  hasCompletedOnboarding?: boolean;
 }
 
 export interface ParentProfile {
   uid: string;
   name: string;
   linkedKidIds: string[];
+  hasCompletedOnboarding?: boolean;
 }
 
 interface AppState {

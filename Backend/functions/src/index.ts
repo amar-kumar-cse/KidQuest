@@ -20,6 +20,7 @@ export { generateFamilyCode } from './family/generateFamilyCode';
 // Scheduled
 export { resetDailyStreaks } from './scheduled/resetDailyStreaks';
 export { sendInactivityNudges } from './scheduled/sendInactivityNudges';
+export { recreateRecurringTasks } from './scheduled/recreateRecurringTasks';
 
 // Export Firestore trigger functions
 export { onTaskSubmitted } from './notifications/onTaskSubmitted';

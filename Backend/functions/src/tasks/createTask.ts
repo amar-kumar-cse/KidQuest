@@ -30,6 +30,18 @@ export const createTask = functions.https.onCall(async (data, context) => {
     if (caller.role !== 'parent') throw new functions.https.HttpsError('permission-denied', 'Only parents can create tasks');
     if (!caller.familyId || caller.familyId !== kid.familyId) throw new functions.https.HttpsError('permission-denied', 'Parent and kid must share a family');
 
+    // Rate Limiting: Prevent spamming task creations
+    const currentTime = admin.firestore.Timestamp.now();
+    if (caller.lastTaskCreatedAt) {
+      const secondsSinceLastCreate = currentTime.seconds - caller.lastTaskCreatedAt.seconds;
+      if (secondsSinceLastCreate < 5) { // 5 second cooldown
+        throw new functions.https.HttpsError(
+          'resource-exhausted',
+          'Please wait a moment before creating another task.',
+        );
+      }
+    }
+
     // Enforce per-kid task limit (active tasks). Try adminConfig, fall back to env/default.
     const cfg = await getAdminConfig(db);
     const MAX_ACTIVE_TASKS = cfg.MAX_ACTIVE_TASKS || parseInt(process.env.MAX_ACTIVE_TASKS || '10', 10);
@@ -68,6 +80,11 @@ export const createTask = functions.https.onCall(async (data, context) => {
       createdAt: now,
       completedAt: null,
       approvedAt: null,
+    });
+
+    // Update parent's lastTaskCreatedAt
+    tx.update(callerRef, {
+      lastTaskCreatedAt: now,
     });
 
     return { success: true, taskId: taskRef.id };

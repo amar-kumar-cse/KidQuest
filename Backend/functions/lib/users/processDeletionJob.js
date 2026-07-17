@@ -57,8 +57,8 @@ async function deleteUserStorageFiles(uid, familyId) {
             const deletes = [];
             tasksSnap.forEach((t) => {
                 const taskId = t.id;
-                // delete any file matching proofs/{familyId}/{taskId}.*
-                deletes.push(bucket.deleteFiles({ prefix: `proofs/${familyId}/${taskId}` }).catch(() => { }));
+                // delete any file matching proofs/{taskId}.*
+                deletes.push(bucket.deleteFiles({ prefix: `proofs/${taskId}` }).catch(() => { }));
             });
             await Promise.all(deletes);
         }

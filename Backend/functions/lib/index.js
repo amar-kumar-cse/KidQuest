@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.processDeletionJob = exports.deleteAccount = exports.onUserDeleted = exports.onTaskApproved = exports.onTaskSubmitted = exports.sendInactivityNudges = exports.resetDailyStreaks = exports.generateFamilyCode = exports.verifyFamilyCode = exports.claimReward = exports.completeTaskTransaction = exports.verifyProof = exports.suggestTasks = exports.createTask = exports.processTaskApproval = exports.rejectTask = exports.approveTask = void 0;
+exports.processDeletionJob = exports.deleteAccount = exports.onUserDeleted = exports.onTaskApproved = exports.onTaskSubmitted = exports.recreateRecurringTasks = exports.sendInactivityNudges = exports.resetDailyStreaks = exports.generateFamilyCode = exports.verifyFamilyCode = exports.claimReward = exports.completeTaskTransaction = exports.verifyProof = exports.suggestTasks = exports.createTask = exports.processTaskApproval = exports.rejectTask = exports.approveTask = void 0;
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
 // Export all callable functions
@@ -64,6 +64,8 @@ var resetDailyStreaks_1 = require("./scheduled/resetDailyStreaks");
 Object.defineProperty(exports, "resetDailyStreaks", { enumerable: true, get: function () { return resetDailyStreaks_1.resetDailyStreaks; } });
 var sendInactivityNudges_1 = require("./scheduled/sendInactivityNudges");
 Object.defineProperty(exports, "sendInactivityNudges", { enumerable: true, get: function () { return sendInactivityNudges_1.sendInactivityNudges; } });
+var recreateRecurringTasks_1 = require("./scheduled/recreateRecurringTasks");
+Object.defineProperty(exports, "recreateRecurringTasks", { enumerable: true, get: function () { return recreateRecurringTasks_1.recreateRecurringTasks; } });
 // Export Firestore trigger functions
 var onTaskSubmitted_1 = require("./notifications/onTaskSubmitted");
 Object.defineProperty(exports, "onTaskSubmitted", { enumerable: true, get: function () { return onTaskSubmitted_1.onTaskSubmitted; } });

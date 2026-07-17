@@ -62,6 +62,18 @@ export const claimReward = functions.https.onCall(async (data, context) => {
       );
     }
 
+    // Rate Limiting: Prevent spamming claims
+    const now = admin.firestore.Timestamp.now();
+    if (kid.lastClaimedAt) {
+      const secondsSinceLastClaim = now.seconds - kid.lastClaimedAt.seconds;
+      if (secondsSinceLastClaim < 10) { // 10 second cooldown
+        throw new functions.https.HttpsError(
+          'resource-exhausted',
+          'Please wait a moment before claiming another reward.',
+        );
+      }
+    }
+
     const kidXp = (kid.totalXp as number) ?? 0;
     const xpCost = reward.xpCost as number;
     if (kidXp < xpCost) {
@@ -82,6 +94,7 @@ export const claimReward = functions.https.onCall(async (data, context) => {
       totalXp: admin.firestore.FieldValue.increment(-xpCost),
       rewardsClaimed: admin.firestore.FieldValue.increment(1),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastClaimedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     // Increment reward claimed count

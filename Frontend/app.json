@@ -53,6 +53,14 @@
         {
           "photosPermission": "KidQuest needs access to your photos to upload task proof."
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "kidquest",
+          "organization": "your-sentry-org"
+        }
       ]
     ],
     "extra": {

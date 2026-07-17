@@ -15,6 +15,12 @@ import { upsertUserProfile } from '../services/api';
 import GlobalLoadingOverlay from '../components/GlobalLoadingOverlay';
 import { scheduleDailyReminder } from '../lib/notificationService';
 import { useNotifications } from '../hooks/useNotifications';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || 'YOUR_SENTRY_DSN_HERE',
+  debug: false, // If `true`, Sentry will try to print out useful debugging information if something goes wrong with sending the event. Set it to `false` in production
+});
 
 /**
  * Root Layout with Firebase Auth Guard + Zustand State Management.
@@ -52,22 +58,24 @@ export default function RootLayout() {
             const role = data.role as 'parent' | 'kid';
             setRole(role);
             
-            if (role === 'kid') {
-              setKidProfile({
-                uid: firebaseUser.uid,
-                name: data.name || 'Kid',
-                totalXp: data.totalXp || 0,
-                tasksCompleted: data.tasksCompleted || 0,
-                linkedParentId: data.linkedParentId || null,
-                avatarEmoji: data.avatarEmoji || '👦'
-              });
-            } else {
-              setParentProfile({
-                uid: firebaseUser.uid,
-                name: data.name || 'Parent',
-                linkedKidIds: data.linkedKids || data.linkedKidIds || []
-              });
-            }
+              if (role === 'kid') {
+                setKidProfile({
+                  uid: firebaseUser.uid,
+                  name: data.name || 'Kid',
+                  totalXp: data.totalXp || 0,
+                  tasksCompleted: data.tasksCompleted || 0,
+                  linkedParentId: data.linkedParentId || null,
+                  avatarEmoji: data.avatarEmoji || '👦',
+                  hasCompletedOnboarding: data.hasCompletedOnboarding || false,
+                });
+              } else {
+                setParentProfile({
+                  uid: firebaseUser.uid,
+                  name: data.name || 'Parent',
+                  linkedKidIds: data.linkedKids || data.linkedKidIds || [],
+                  hasCompletedOnboarding: data.hasCompletedOnboarding || false,
+                });
+              }
           } else {
             // First time login — create a default user profile
             await upsertUserProfile(firebaseUser.uid, {
@@ -78,12 +86,14 @@ export default function RootLayout() {
               linkedKidIds: [],
               totalXp: 0,
               tasksCompleted: 0,
+              hasCompletedOnboarding: false,
             });
             setRole('parent');
             setParentProfile({
               uid: firebaseUser.uid,
               name: firebaseUser.displayName || 'Parent',
-              linkedKidIds: []
+              linkedKidIds: [],
+              hasCompletedOnboarding: false,
             });
           }
 
@@ -116,10 +126,16 @@ export default function RootLayout() {
     const inAuthGroup = segments[0] === '(auth)';
     const inKidGroup = segments[0] === '(kid)';
     const inParentGroup = segments[0] === '(parent)';
+    const inOnboarding = segments[1] === 'onboarding';
+
+    const profile = userRole === 'kid' ? kidProfile : parentProfile;
+    const hasCompletedOnboarding = profile?.hasCompletedOnboarding;
 
     if (!user && !inAuthGroup) {
       router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
+    } else if (user && !hasCompletedOnboarding && !inOnboarding) {
+      router.replace('/(auth)/onboarding');
+    } else if (user && hasCompletedOnboarding && inAuthGroup) {
       // Route based on role
       if (userRole === 'kid') {
         router.replace('/(kid)/mission-board');
@@ -133,7 +149,7 @@ export default function RootLayout() {
       // Parent tried to access kid routes — redirect
       router.replace('/(parent)/dashboard');
     }
-  }, [user, userRole, authLoading, segments]);
+  }, [user, userRole, authLoading, segments, kidProfile, parentProfile]);
 
   // ── 3. Loading State ──────────────────────────────────────────────
   if (authLoading) {
@@ -157,3 +173,5 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);
