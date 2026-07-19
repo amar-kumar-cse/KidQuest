@@ -16,6 +16,7 @@ export interface UserProfile {
   linkedKidIds?: string[];
   avatarEmoji?: string;
   pushToken?: string | null;
+  hasCompletedOnboarding?: boolean;
   createdAt?: any;
 }
 

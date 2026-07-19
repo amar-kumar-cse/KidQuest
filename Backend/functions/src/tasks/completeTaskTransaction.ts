@@ -91,12 +91,16 @@ export const completeTaskTransaction = functions.https.onCall(async (data, conte
       updatedAt: now,
     });
 
+    const currentHp = child.hp !== undefined ? child.hp : 100;
+    const newHp = Math.min(100, currentHp + 10);
+
     tx.update(childRef, {
       totalXp: admin.firestore.FieldValue.increment(totalXpAward),
       tasksCompleted: admin.firestore.FieldValue.increment(1),
       lastCompletedAt: now,
       currentStreak: newStreak,
       bestStreak: bestStreak,
+      hp: newHp,
     });
 
     // In-app notification

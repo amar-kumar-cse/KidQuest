@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.processDeletionJob = exports.deleteAccount = exports.onUserDeleted = exports.onTaskApproved = exports.onTaskSubmitted = exports.recreateRecurringTasks = exports.sendInactivityNudges = exports.resetDailyStreaks = exports.generateFamilyCode = exports.verifyFamilyCode = exports.claimReward = exports.completeTaskTransaction = exports.verifyProof = exports.suggestTasks = exports.createTask = exports.processTaskApproval = exports.rejectTask = exports.approveTask = void 0;
+exports.generateKidCustomToken = exports.processDeletionJob = exports.deleteAccount = exports.onUserDeleted = exports.onTaskApproved = exports.onTaskSubmitted = exports.recreateRecurringTasks = exports.sendInactivityNudges = exports.resetDailyStreaks = exports.generateFamilyCode = exports.verifyFamilyCode = exports.claimReward = exports.completeTaskTransaction = exports.verifyProof = exports.suggestTasks = exports.createTask = exports.processTaskApproval = exports.rejectTask = exports.approveTask = void 0;
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
 // Export all callable functions
@@ -78,4 +78,6 @@ var deleteAccount_1 = require("./users/deleteAccount");
 Object.defineProperty(exports, "deleteAccount", { enumerable: true, get: function () { return deleteAccount_1.deleteAccount; } });
 var processDeletionJob_1 = require("./users/processDeletionJob");
 Object.defineProperty(exports, "processDeletionJob", { enumerable: true, get: function () { return processDeletionJob_1.processDeletionJob; } });
+var generateKidCustomToken_1 = require("./users/generateKidCustomToken");
+Object.defineProperty(exports, "generateKidCustomToken", { enumerable: true, get: function () { return generateKidCustomToken_1.generateKidCustomToken; } });
 //# sourceMappingURL=index.js.map

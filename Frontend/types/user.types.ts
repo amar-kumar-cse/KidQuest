@@ -29,6 +29,7 @@ export interface Kid extends BaseUser {
   tasksCompleted: number;
   rewardsClaimed: number;
   level: number;            // Calculated from totalXp
+  hp: number;               // Health Points for gamified consequences
 }
 
 export type AppUser = Parent | Kid;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, SafeAreaView, TouchableOpacity, Modal, Image, Alert, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useKidProfile } from '../../../hooks/useKidProfile';
 import { taskService } from '../../../services/taskService';
@@ -8,6 +8,8 @@ import { StreakBadge } from '../../../components/ui/StreakBadge';
 import { TaskCard } from '../../../components/tasks/TaskCard';
 import { LoadingSpinner } from '../../../components/ui/LoadingSpinner';
 import { getEarnedBadges } from '../../../constants/Badges';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../../../lib/firebase';
 import type { Task } from '../../../types';
 
 export default function KidProfileScreen() {
@@ -15,6 +17,9 @@ export default function KidProfileScreen() {
   const router = useRouter();
   const { profile, isLoading, xpProgress, earnedBadges } = useKidProfile(id);
   const [recentTasks, setRecentTasks] = useState<Task[]>([]);
+  const [qrToken, setQrToken] = useState<string | null>(null);
+  const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [generatingQr, setGeneratingQr] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -23,6 +28,25 @@ export default function KidProfileScreen() {
     });
     return unsub;
   }, [id]);
+
+  const handleGenerateQr = async () => {
+    if (!id) return;
+    setGeneratingQr(true);
+    try {
+      const getQrToken = httpsCallable<{ kidUid: string }, { success: boolean; customToken: string }>(functions, 'generateKidCustomToken');
+      const result = await getQrToken({ kidUid: id });
+      if (result.data.success && result.data.customToken) {
+        setQrToken(result.data.customToken);
+        setQrModalVisible(true);
+      } else {
+        Alert.alert('Error', 'Could not generate linking code.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Linking failed.');
+    } finally {
+      setGeneratingQr(false);
+    }
+  };
 
   if (isLoading) return <LoadingSpinner fullScreen message="Loading profile..." />;
   if (!profile) return (
@@ -46,7 +70,20 @@ export default function KidProfileScreen() {
             </View>
             <View className="flex-1">
               <Text className="text-2xl font-black text-white">{profile.name}</Text>
-              {profile.age && <Text className="text-white/70 text-sm">Age {profile.age}</Text>}
+              <View className="flex-row items-center mt-1">
+                {profile.age && <Text className="text-white/70 text-sm mr-3">Age {profile.age}</Text>}
+                <TouchableOpacity 
+                  onPress={handleGenerateQr}
+                  disabled={generatingQr}
+                  className="bg-white/20 px-2 py-1 rounded-lg flex-row items-center"
+                >
+                  {generatingQr ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text className="text-white text-xs font-bold">📱 Link Device (QR)</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
             <StreakBadge streak={profile.currentStreak ?? 0} size="sm" />
           </View>
@@ -66,6 +103,20 @@ export default function KidProfileScreen() {
               <Text className="text-xs text-slate-400">{s.label}</Text>
             </View>
           ))}
+        </View>
+
+        {/* Health Points (HP) Bar */}
+        <View className="bg-white mx-6 rounded-2xl p-5 shadow-sm border border-slate-100 mb-6">
+          <View className="flex-row justify-between items-center mb-2">
+            <Text className="text-base font-bold text-slate-700">💚 Health Points (HP)</Text>
+            <Text className="text-base font-bold text-green-600">{(profile as any).hp !== undefined ? (profile as any).hp : 100}/100</Text>
+          </View>
+          <View className="h-3 bg-slate-100 rounded-full overflow-hidden">
+            <View 
+              className="h-full bg-green-500 rounded-full" 
+              style={{ width: `${(profile as any).hp !== undefined ? (profile as any).hp : 100}%` }} 
+            />
+          </View>
         </View>
 
         {/* Badges */}
@@ -93,6 +144,41 @@ export default function KidProfileScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {/* QR Code Linking Modal */}
+      <Modal
+        visible={qrModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setQrModalVisible(false)}
+      >
+        <View className="flex-1 bg-slate-900/80 items-center justify-center p-6">
+          <View className="bg-white rounded-3xl p-6 items-center w-full max-w-sm">
+            <Text className="text-2xl font-black text-slate-800 mb-2">Link Kid's Device</Text>
+            <Text className="text-slate-500 text-center mb-6">
+              Ask your child to tap "Scan to Start" on their welcome screen and scan this code.
+            </Text>
+
+            {qrToken && (
+              <View className="p-3 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm mb-6">
+                <Image
+                  source={{ uri: `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(qrToken)}` }}
+                  className="w-56 h-56"
+                  resizeMode="contain"
+                />
+              </View>
+            )}
+
+            <TouchableOpacity
+              onPress={() => setQrModalVisible(false)}
+              className="bg-indigo-600 w-full py-4 rounded-2xl items-center shadow-md"
+            >
+              <Text className="text-white font-bold text-lg">Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+

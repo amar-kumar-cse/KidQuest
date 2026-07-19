@@ -12,6 +12,7 @@ export interface KidProfile {
   tasksCompleted: number;
   linkedParentId: string | null;
   avatarEmoji: string;
+  hp?: number;
   hasCompletedOnboarding?: boolean;
 }
 

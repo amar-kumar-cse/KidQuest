@@ -30,3 +30,4 @@ export { onTaskApproved } from './notifications/onTaskApproved';
 export { onUserDeleted } from './users/onUserDeleted';
 export { deleteAccount } from './users/deleteAccount';
 export { processDeletionJob } from './users/processDeletionJob';
+export { generateKidCustomToken } from './users/generateKidCustomToken';

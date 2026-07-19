@@ -120,8 +120,8 @@ service cloud.firestore {
     // FIX: Previously ANY signed-in user could read ALL codes (enumeration risk)
     // Now: Parent can read their OWN code; kid verifies via Cloud Function only
     match /FamilyCodes/{code} {
-      // Block all client-side reads to prevent enumeration and scraping.
-      allow read: if false;
+      // Allow only the parent who generated the code to read it
+      allow read: if isSignedIn() && request.auth.uid == resource.data.parentId;
 
       // Parent may create a family code for their family (write-only from client)
       allow create: if isParent()
@@ -139,15 +139,9 @@ service cloud.firestore {
     // FIX: Previously ANY signed-in user could read ALL rewards (cross-family leak)
     // Now: Only parent or kids linked to that parent can read
     match /Rewards/{rewardId} {
-      // Parent reads rewards in their family
+      // Only parent or kids belonging to the same family can read rewards
       allow read: if isSignedIn()
-        && resource.data.familyId == getUserFamily(request.auth.uid)
-        && resource.data.parentId == request.auth.uid;
-
-      // Kid reads rewards belonging to the same family
-      allow read: if isSignedIn()
-        && isKid()
-        && getUserFamily(request.auth.uid) == resource.data.familyId;
+        && resource.data.familyId == getUserFamily(request.auth.uid);
 
       // Only parent may create rewards for their family
       allow create: if isParent()

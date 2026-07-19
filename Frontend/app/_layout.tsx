@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, AppState, AppStateStatus } from 'react-native';
 import 'react-native-reanimated';
 import '../global.css';
 
@@ -15,6 +15,7 @@ import { upsertUserProfile } from '../services/api';
 import GlobalLoadingOverlay from '../components/GlobalLoadingOverlay';
 import { scheduleDailyReminder } from '../lib/notificationService';
 import { useNotifications } from '../hooks/useNotifications';
+import { offlineQueue } from '../lib/offlineQueue';
 import * as Sentry from '@sentry/react-native';
 
 Sentry.init({
@@ -33,7 +34,7 @@ Sentry.init({
  */
 export const unstable_settings = { anchor: '(tabs)' };
 
-export default function RootLayout() {
+function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const segments = useSegments();
@@ -41,8 +42,32 @@ export default function RootLayout() {
   const { 
     user, userRole, authLoading, 
     setUser, setRole, setAuthLoading, 
+    kidProfile, parentProfile,
     setKidProfile, setParentProfile, clearStore 
   } = useAppStore();
+
+  // ── Background Offline Queue processing ───────────────────────────
+  useEffect(() => {
+    // Process queue immediately on start
+    offlineQueue.processOfflineQueue().catch(() => {});
+
+    // Periodically process queue every 45 seconds
+    const interval = setInterval(() => {
+      offlineQueue.processOfflineQueue().catch(() => {});
+    }, 45000);
+
+    // Also process when app returns to active foreground status
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        offlineQueue.processOfflineQueue().catch(() => {});
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, []);
 
   // ── 1. Listen to Firebase auth state ──────────────────────────────
   useEffect(() => {
@@ -66,6 +91,7 @@ export default function RootLayout() {
                   tasksCompleted: data.tasksCompleted || 0,
                   linkedParentId: data.linkedParentId || null,
                   avatarEmoji: data.avatarEmoji || '👦',
+                  hp: data.hp !== undefined ? data.hp : 100,
                   hasCompletedOnboarding: data.hasCompletedOnboarding || false,
                 });
               } else {
@@ -126,28 +152,28 @@ export default function RootLayout() {
     const inAuthGroup = segments[0] === '(auth)';
     const inKidGroup = segments[0] === '(kid)';
     const inParentGroup = segments[0] === '(parent)';
-    const inOnboarding = segments[1] === 'onboarding';
+    const inOnboarding = (segments[1] as string) === 'onboarding';
 
     const profile = userRole === 'kid' ? kidProfile : parentProfile;
     const hasCompletedOnboarding = profile?.hasCompletedOnboarding;
 
     if (!user && !inAuthGroup) {
-      router.replace('/(auth)/login');
+      router.replace('/(auth)/login' as any);
     } else if (user && !hasCompletedOnboarding && !inOnboarding) {
-      router.replace('/(auth)/onboarding');
+      router.replace('/(auth)/onboarding' as any);
     } else if (user && hasCompletedOnboarding && inAuthGroup) {
       // Route based on role
       if (userRole === 'kid') {
-        router.replace('/(kid)/mission-board');
+        router.replace('/(kid)/mission-board' as any);
       } else {
-        router.replace('/(parent)/dashboard');
+        router.replace('/(parent)/dashboard' as any);
       }
     } else if (user && userRole === 'kid' && inParentGroup) {
       // Kid tried to access parent routes — redirect
-      router.replace('/(kid)/mission-board');
+      router.replace('/(kid)/mission-board' as any);
     } else if (user && userRole === 'parent' && inKidGroup) {
       // Parent tried to access kid routes — redirect
-      router.replace('/(parent)/dashboard');
+      router.replace('/(parent)/dashboard' as any);
     }
   }, [user, userRole, authLoading, segments, kidProfile, parentProfile]);
 

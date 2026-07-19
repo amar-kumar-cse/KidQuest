@@ -14,11 +14,13 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showKidManualLogin, setShowKidManualLogin] = useState(false);
   const router = useRouter();
 
   const switchRole = (newRole: 'kid' | 'parent') => {
     setRole(newRole);
     setError(''); // Clear errors when switching role
+    setShowKidManualLogin(false);
   };
 
   const handleLogin = async () => {
@@ -112,38 +114,60 @@ export default function LoginScreen() {
         </View>
       ) : null}
 
-      <View className="space-y-4 mb-8">
-        <View>
-          <Text className={`text-sm font-semibold mb-1 ml-1 ${role === 'kid' ? 'text-amber-800' : 'text-slate-600'}`}>Email or Phone</Text>
-          <TextInput
-            placeholder="Enter your email"
-            value={email}
-            onChangeText={setEmail}
-            className={`w-full p-4 rounded-xl text-lg ${role === 'kid' ? 'bg-white border-4 border-amber-300 shadow-sm font-bold placeholder:text-amber-200 text-amber-900' : 'bg-white border border-slate-200 shadow-sm placeholder:text-slate-300'}`}
-            autoCapitalize="none"
-          />
-        </View>
-        <View>
-          <Text className={`text-sm font-semibold mb-1 ml-1 ${role === 'kid' ? 'text-amber-800' : 'text-slate-600'}`}>Password</Text>
-          <TextInput
-            placeholder="Enter your password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            className={`w-full p-4 rounded-xl text-lg ${role === 'kid' ? 'bg-white border-4 border-amber-300 shadow-sm font-bold placeholder:text-amber-200 text-amber-900' : 'bg-white border border-slate-200 shadow-sm placeholder:text-slate-300'}`}
-          />
-        </View>
-      </View>
+      {role === 'kid' && !showKidManualLogin ? (
+        <View className="items-center space-y-6">
+          <TouchableOpacity
+            onPress={() => router.push('/(auth)/qr-scan' as any)}
+            className="w-full bg-green-500 p-8 rounded-3xl border-b-8 border-green-600 shadow-xl items-center"
+          >
+            <Text className="text-6xl mb-3">📷</Text>
+            <Text className="text-white text-2xl font-black">Scan QR to Start</Text>
+            <Text className="text-white/80 text-xs mt-1 text-center font-bold">Ask parent to show the QR Code on their device</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity 
-        onPress={handleLogin}
-        disabled={loading}
-        className={`w-full p-4 rounded-2xl items-center ${loading ? 'opacity-70' : ''} ${role === 'kid' ? 'bg-green-500 border-b-8 border-green-600 shadow-lg' : 'bg-indigo-600 shadow-md'}`}
-      >
-        <Text className={`text-xl ${role === 'kid' ? 'text-white font-black' : 'text-white font-bold'}`}>
-          {loading ? 'LOADING...' : (role === 'kid' ? 'START ADVENTURE' : 'Access Dashboard')}
-        </Text>
-      </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setShowKidManualLogin(true)}
+            className="pt-4"
+          >
+            <Text className="text-amber-800 font-bold text-base underline">Or use Email & Password</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          <View className="space-y-4 mb-8">
+            <View>
+              <Text className={`text-sm font-semibold mb-1 ml-1 ${role === 'kid' ? 'text-amber-800' : 'text-slate-600'}`}>Email or Phone</Text>
+              <TextInput
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={setEmail}
+                className={`w-full p-4 rounded-xl text-lg ${role === 'kid' ? 'bg-white border-4 border-amber-300 shadow-sm font-bold placeholder:text-amber-200 text-amber-900' : 'bg-white border border-slate-200 shadow-sm placeholder:text-slate-300'}`}
+                autoCapitalize="none"
+              />
+            </View>
+            <View>
+              <Text className={`text-sm font-semibold mb-1 ml-1 ${role === 'kid' ? 'text-amber-800' : 'text-slate-600'}`}>Password</Text>
+              <TextInput
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                className={`w-full p-4 rounded-xl text-lg ${role === 'kid' ? 'bg-white border-4 border-amber-300 shadow-sm font-bold placeholder:text-amber-200 text-amber-900' : 'bg-white border border-slate-200 shadow-sm placeholder:text-slate-300'}`}
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity 
+            onPress={handleLogin}
+            disabled={loading}
+            className={`w-full p-4 rounded-2xl items-center ${loading ? 'opacity-70' : ''} ${role === 'kid' ? 'bg-green-500 border-b-8 border-green-600 shadow-lg' : 'bg-indigo-600 shadow-md'}`}
+          >
+            <Text className={`text-xl ${role === 'kid' ? 'text-white font-black' : 'text-white font-bold'}`}>
+              {loading ? 'LOADING...' : (role === 'kid' ? 'START ADVENTURE' : 'Access Dashboard')}
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
 
     </KeyboardAvoidingView>
   );

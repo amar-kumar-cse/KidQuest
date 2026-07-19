@@ -17,6 +17,7 @@ import KidQuestLogo from '../../components/KidQuestLogo';
 import SkeletonLoader from '../../components/SkeletonLoader';
 import { useKidTasks } from '../../hooks/useTasks';
 import { useNotifications } from '../../hooks/useNotifications';
+import { offlineQueue } from '../../lib/offlineQueue';
 import type { Task } from '../../types';
 import Animated, { FadeInRight, FadeInLeft, Layout } from 'react-native-reanimated';
 
@@ -108,7 +109,26 @@ export default function MissionBoard() {
       setUploadPercent(null);
     } catch (err: any) {
       console.error('Error completing task:', err);
-      Alert.alert('Error', authService.getErrorMessage(err));
+      if (proofImageUri) {
+        Alert.alert(
+          '📶 Saved Offline',
+          'You seem offline, but your proof is saved! It will be uploaded automatically in the background once connection returns.',
+          [
+            {
+              text: 'Awesome',
+              onPress: async () => {
+                await offlineQueue.saveOfflineProof(selectedQuest.id, proofImageUri);
+                setProofModalVisible(false);
+                setSelectedQuest(null);
+                setProofImageUri(null);
+                setUploadPercent(null);
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', authService.getErrorMessage(err));
+      }
     } finally {
       setSubmitting(false);
     }

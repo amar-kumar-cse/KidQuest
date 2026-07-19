@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import AiMotivator from '../../components/AiMotivator';
+import { useAppStore } from '../../store/useAppStore';
 
 interface StreakData {
   current: number;
@@ -14,6 +15,8 @@ interface StreakData {
 
 export default function KidStatsScreen() {
   const router = useRouter();
+  const { kidProfile } = useAppStore();
+  const hp = kidProfile?.hp !== undefined ? kidProfile.hp : 100;
   const [totalXp, setTotalXp] = useState(0);
   const [completedTasks, setCompletedTasks] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -111,6 +114,23 @@ export default function KidStatsScreen() {
                 <Text className="text-2xl font-black text-[#000080]">{completedTasks}</Text>
                 <Text className="text-xs font-bold text-sky-600 mt-1">Quests Done</Text>
               </View>
+            </View>
+
+            {/* Health Points (HP) Gamified Consequences Bar */}
+            <View className="bg-white rounded-2xl p-5 shadow-sm border border-sky-100 mb-4">
+              <View className="flex-row justify-between items-center mb-2">
+                <Text className="text-base font-bold text-[#000080]">💚 Health Points (HP)</Text>
+                <Text className="text-base font-black text-green-600">{hp}/100</Text>
+              </View>
+              <View className="h-4 bg-slate-100 rounded-full overflow-hidden">
+                <View 
+                  className="h-full bg-green-500 rounded-full" 
+                  style={{ width: `${hp}%` }} 
+                />
+              </View>
+              <Text className="text-[11px] text-slate-400 mt-2 font-medium">
+                💡 Missing daily routines reduces HP! Complete quests to restore it.
+              </Text>
             </View>
 
             {/* AI Motivator Card */}

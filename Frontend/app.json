@@ -45,7 +45,9 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
-          "dark": { "backgroundColor": "#1a1a2e" }
+          "dark": {
+            "backgroundColor": "#1a1a2e"
+          }
         }
       ],
       [
@@ -61,7 +63,9 @@
           "project": "kidquest",
           "organization": "your-sentry-org"
         }
-      ]
+      ],
+      "@sentry/react-native",
+      "expo-font"
     ],
     "extra": {
       "eas": {

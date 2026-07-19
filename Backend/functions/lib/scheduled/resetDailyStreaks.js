@@ -54,7 +54,13 @@ exports.resetDailyStreaks = functions.pubsub
         const data = doc.data();
         const last = data.lastCompletedAt ? new Date(data.lastCompletedAt.seconds * 1000) : null;
         if (!last || last.getTime() < threshold) {
-            batch.update(doc.ref, { currentStreak: 0, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+            const currentHp = data.hp !== undefined ? data.hp : 100;
+            const newHp = Math.max(0, currentHp - 20);
+            batch.update(doc.ref, {
+                currentStreak: 0,
+                hp: newHp,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
             ops++;
         }
         if (ops === 500) {
