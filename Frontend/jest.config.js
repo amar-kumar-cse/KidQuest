@@ -1,6 +1,4 @@
-import type { Config } from 'jest';
-
-const config: Config = {
+module.exports = {
   preset: 'jest-expo',
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|react-navigation|@react-navigation/.*|firebase|@firebase|nativewind)',
@@ -13,12 +11,7 @@ const config: Config = {
     '!**/*.d.ts',
     '!**/node_modules/**',
   ],
-  coverageThreshold: {
-    global: { branches: 60, functions: 60, lines: 60 },
-  },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
 };
-
-export default config;

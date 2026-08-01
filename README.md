@@ -128,15 +128,35 @@ const firebaseConfig = {
 
 ---
 
+## 🧪 Testing & Quality Assurance
+
+```bash
+# Run unit tests
+npm test
+
+# Run tests with code coverage report
+npm run test:coverage
+
+# Run TypeScript type check
+npm run type-check
+```
+
+---
+
 ## 🗺️ Roadmap
 
 - [x] Daily routine tracker
-- [x] Firebase Firestore integration
-- [x] Push notifications
+- [x] Firebase Firestore integration & Offline Persistence
+- [x] Push notifications & In-app Notification Center
 - [x] School portal for teachers
 - [x] NativeWind UI
-- [ ] Gamification — badges and rewards
-- [ ] Parent dashboard
+- [x] Gamification — badges, levels, streak logic, and rewards vault
+- [x] Parent dashboard — task approval, analytics, and kid management
+- [x] Recurring tasks (daily & weekly scheduling)
+- [x] In-app Privacy Policy & COPPA Compliance
+- [x] In-app Account Deletion (Firebase Auth + Firestore data purge)
+- [x] Role-based guided onboarding flow
+- [x] Sentry error tracking setup
 - [ ] AI-powered study suggestions
 
 ---

@@ -146,10 +146,17 @@ export default function ParentSettings() {
             <Text className="text-slate-400">→</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            className="p-5 flex-row justify-between items-center"
+            className="p-5 border-b border-slate-50 flex-row justify-between items-center"
             onPress={() => router.push('/(parent)/create-task')}
           >
             <Text className="text-base font-semibold text-slate-800">📝 Assign New Task</Text>
+            <Text className="text-slate-400">→</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="p-5 flex-row justify-between items-center"
+            onPress={() => router.push('/privacy' as any)}
+          >
+            <Text className="text-base font-semibold text-slate-800">🔒 Privacy Policy & Terms</Text>
             <Text className="text-slate-400">→</Text>
           </TouchableOpacity>
         </View>

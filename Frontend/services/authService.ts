@@ -7,7 +7,7 @@ import {
   deleteUser,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import type { AppUser, UserRole } from '../types';
 
@@ -74,11 +74,16 @@ export const authService = {
   },
 
   /**
-   * Delete the current user's account.
+   * Delete the current user's account and Firestore profile.
    */
   async deleteAccount(): Promise<void> {
     const user = auth.currentUser;
     if (user) {
+      try {
+        await deleteDoc(doc(db, 'Users', user.uid));
+      } catch (e) {
+        console.warn('[authService] Could not delete user document prior to auth deletion:', e);
+      }
       await deleteUser(user);
     }
   },

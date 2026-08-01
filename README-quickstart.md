@@ -18,9 +18,17 @@ Start emulators (functions, firestore, auth):
 npm run backend:functions:serve
 ```
 
-Note: First-time runs may require installing dependencies inside `frontend/` and `backend/functions`:
+Note: First-time runs may require installing dependencies inside `Frontend/` and `Backend/functions`:
 
 ```bash
-cd frontend && npm install
-cd ../backend/functions && npm install
+cd Frontend && npm install
+cd ../Backend/functions && npm install
 ```
+
+Run test suite:
+
+```bash
+cd Frontend && npm test
+```
+
+

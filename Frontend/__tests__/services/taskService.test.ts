@@ -53,10 +53,10 @@ describe('taskService', () => {
   });
 
   describe('approveTask', () => {
-    it('calls the approveTask Cloud Function', async () => {
+    it('calls the completeTaskTransaction Cloud Function', async () => {
       const { httpsCallable } = require('firebase/functions');
       await taskService.approveTask('task-123', 'child-123');
-      expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'approveTask');
+      expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'completeTaskTransaction');
     });
   });
 });

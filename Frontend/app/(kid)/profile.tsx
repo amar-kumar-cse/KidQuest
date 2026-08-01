@@ -135,7 +135,11 @@ export default function KidProfileScreen() {
           </View>
         )}
 
-        <TouchableOpacity onPress={handleLogout} className="bg-red-50 border border-red-200 py-4 rounded-2xl items-center mt-4 mb-2">
+        <TouchableOpacity onPress={() => router.push('/privacy' as any)} className="bg-slate-100 py-3 rounded-2xl items-center mb-3">
+          <Text className="text-slate-600 font-bold text-sm">🔒 Privacy Policy & Terms</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleLogout} className="bg-red-50 border border-red-200 py-4 rounded-2xl items-center mb-2">
           <Text className="text-red-600 font-bold">Log Out</Text>
         </TouchableOpacity>
 
