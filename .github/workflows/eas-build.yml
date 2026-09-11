@@ -1,0 +1,55 @@
+name: EAS Mobile Build (On-Demand)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'EAS Build Profile (preview | production)'
+        required: true
+        type: choice
+        default: 'preview'
+        options:
+          - preview
+          - production
+      platform:
+        description: 'Target Mobile Platform'
+        required: true
+        type: choice
+        default: 'all'
+        options:
+          - all
+          - android
+          - ios
+
+jobs:
+  build:
+    name: Run EAS Mobile Build (${{ github.event.inputs.environment }} - ${{ github.event.inputs.platform }})
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'Frontend/package-lock.json'
+
+      - name: Setup EAS CLI & Expo Tools
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install Frontend Dependencies
+        working-directory: ./Frontend
+        run: npm ci
+
+      - name: Execute EAS Cloud Build
+        working-directory: ./Frontend
+        run: |
+          eas build --platform ${{ github.event.inputs.platform }} --profile ${{ github.event.inputs.environment }} --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

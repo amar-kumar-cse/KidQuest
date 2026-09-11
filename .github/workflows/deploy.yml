@@ -1,0 +1,84 @@
+name: Deploy Production (Functions & Portal)
+
+on:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Firebase (Functions & Hosting)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Functions Dependencies & Build
+        working-directory: ./Backend/functions
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install School Portal Dependencies & Build
+        working-directory: ./school-portal
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Cloud Functions and School Portal Hosting
+        id: firebase_deploy
+        run: |
+          firebase deploy --only functions,hosting,firestore:rules,firestore:indexes,storage --project ${{ secrets.FIREBASE_PROJECT_ID }}
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      # ─── Slack / Discord Notifications ───────────────────────────────────────
+      - name: Notify Notification Webhook on Success
+        if: success() && (secrets.SLACK_WEBHOOK_URL != '' || secrets.DISCORD_WEBHOOK_URL != '')
+        run: |
+          WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}"
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
+          COMMIT_AUTHOR="${{ github.actor }}"
+          REF_NAME="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
+          RUN_URL="https://github.com/${REPO}/actions/runs/${{ github.run_id }}"
+
+          PAYLOAD=$(cat <<EOF
+          {
+            "text": "✅ *KidQuest Production Deployment Succeeded!*\n• *Repo*: $REPO\n• *Branch*: \`$REF_NAME\`\n• *Author*: $COMMIT_AUTHOR\n• *Commit*: $COMMIT_MSG\n• *Details*: <$RUN_URL|View Action Run>"
+          }
+          EOF
+          )
+
+          curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "$WEBHOOK_URL"
+
+      - name: Notify Notification Webhook on Failure
+        if: failure() && (secrets.SLACK_WEBHOOK_URL != '' || secrets.DISCORD_WEBHOOK_URL != '')
+        run: |
+          WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}"
+          COMMIT_AUTHOR="${{ github.actor }}"
+          REF_NAME="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
+          RUN_URL="https://github.com/${REPO}/actions/runs/${{ github.run_id }}"
+
+          PAYLOAD=$(cat <<EOF
+          {
+            "text": "❌ *KidQuest Production Deployment FAILED!*\n• *Repo*: $REPO\n• *Branch*: \`$REF_NAME\`\n• *Triggered By*: $COMMIT_AUTHOR\n• *Details*: <$RUN_URL|Inspect Deployment Logs>"
+          }
+          EOF
+          )
+
+          curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "$WEBHOOK_URL"

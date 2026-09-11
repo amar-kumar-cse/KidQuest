@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "kidquest-prod",
+    "production": "kidquest-prod",
+    "staging": "kidquest-staging"
+  }
+}
