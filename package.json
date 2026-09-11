@@ -9,6 +9,10 @@
     "frontend:typecheck": "cd Frontend && npm run type-check",
     "backend:functions:build": "cd Backend/functions && npm run build",
     "backend:functions:serve": "cd Backend && npx firebase-tools emulators:start --only functions,firestore,auth,storage",
+    "test": "cd Frontend && npm run test",
+    "test:coverage": "cd Frontend && npm run test:coverage",
+    "test:watch": "cd Frontend && npm run test:watch",
+    "test:rules": "firebase emulators:exec --only firestore \"npm --prefix Backend test\"",
     "dev": "concurrently \"npm:frontend:start\" \"npm:backend:functions:serve\""
   },
   "devDependencies": {

@@ -2,7 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helper functions ──────────────────────────────────────────────
+    // =====================================================================
+    // HELPER FUNCTIONS & ROLE CHECKERS
+    // =====================================================================
 
     function isSignedIn() {
       return request.auth != null;
@@ -12,212 +14,218 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function userDocExists(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
     function getUserData(uid) {
-      return get(/databases/$(database)/documents/Users/$(uid)).data;
+      return get(/databases/$(database)/documents/users/$(uid)).data;
     }
 
-    function getUserFamily(uid) {
-      return getUserData(uid).familyId;
+    function currentUserData() {
+      return getUserData(request.auth.uid);
     }
 
-    function sameFamily(resourceFamilyId) {
-      return isSignedIn() && resourceFamilyId == getUserFamily(request.auth.uid);
-    }
-
-    function isParentOf(taskData) {
-      return isSignedIn() && request.auth.uid == taskData.parentId && sameFamily(taskData.familyId);
-    }
-
-    function isAssignedKid(taskData) {
-      return isSignedIn() && request.auth.uid == taskData.assignedToUid && sameFamily(taskData.familyId);
-    }
-
-    function userRole() {
-      return getUserData(request.auth.uid).role;
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.get('admin', false) == true ||
+        (userDocExists(request.auth.uid) && currentUserData().get('role', '') == 'admin')
+      );
     }
 
     function isParent() {
-      return isSignedIn() && userRole() == 'parent';
+      return isSignedIn() && userDocExists(request.auth.uid) && currentUserData().get('role', '') == 'parent';
     }
 
-    function isKid() {
-      return isSignedIn() && userRole() == 'kid';
+    function isTeacher() {
+      return isSignedIn() && userDocExists(request.auth.uid) && currentUserData().get('role', '') == 'teacher';
     }
 
-    // ── Users Collection ──────────────────────────────────────────────
-    match /Users/{userId} {
-      // Reads: user may read own doc; parents in same family may read kid profiles
-      allow read: if isUser(userId) || (isParent() && sameFamily(resource.data.familyId));
+    function isParentOf(childUid) {
+      return isParent() &&
+        ('parentOf' in currentUserData()) &&
+        currentUserData().parentOf.hasAny([childUid]);
+    }
 
-      // Creation: users may create their own profile with required fields
-      allow create: if isUser(userId)
-        && request.resource.data.keys().hasAll(['uid', 'email', 'name', 'role', 'familyId', 'createdAt'])
-        && (request.resource.data.role == 'parent' || request.resource.data.role == 'kid');
+    function isTeacherOf(studentUid) {
+      return isTeacher() &&
+        ('teacherOf' in currentUserData()) &&
+        currentUserData().teacherOf.hasAny([studentUid]);
+    }
 
-      // Updates: user may update non-sensitive profile fields; parents may update their kid's profile fields.
-      // Prevent client-side writes to XP/streak/family/role fields. Only server (Admin SDK / Cloud Functions)
-      // should modify totalXp, currentStreak, bestStreak, lastCompletedAt, role, or familyId.
-      allow update: if (
-        // user updating own profile (allow only non-sensitive keys)
+    // Rate-limiting / DoS prevention via document payload bounds
+    function isValidDocSize(maxKeys) {
+      return request.resource.data.keys().size() <= maxKeys;
+    }
+
+    // =====================================================================
+    // USERS COLLECTION: users/{uid}
+    // Fields: role ('child'|'parent'|'teacher'|'admin'), name, email, parentOf[], teacherOf[]
+    // =====================================================================
+    match /users/{userId} {
+      allow read: if isAdmin()
+        || isUser(userId)
+        || isParentOf(userId)
+        || isTeacherOf(userId);
+
+      allow create: if isAdmin() || (
         isUser(userId)
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['totalXp', 'currentStreak', 'bestStreak', 'lastCompletedAt', 'role', 'familyId'])
-      ) || (
-        // parent updating kid's profile (allow only a limited set of non-sensitive fields)
-        isParent()
-          && sameFamily(resource.data.familyId)
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['totalXp', 'currentStreak', 'bestStreak', 'lastCompletedAt', 'role', 'familyId'])
+        && isValidDocSize(15)
+        && request.resource.data.keys().hasAll(['role', 'name', 'createdAt'])
+        && request.resource.data.role in ['child', 'parent', 'teacher']
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 100
+        && (!('parentOf' in request.resource.data) || request.resource.data.parentOf is list)
+        && (!('teacherOf' in request.resource.data) || request.resource.data.teacherOf is list)
       );
 
-      // No client-side deletes
-      allow delete: if false;
-    }
-
-    // ── Tasks Collection ─────────────────────────────────────────────
-    match /Tasks/{taskId} {
-      // Read: Parent (their tasks) or assigned Kid — only within same family
-      allow read: if (isParentOf(resource.data) || isAssignedKid(resource.data)) && sameFamily(resource.data.familyId);
-
-      // Create: Only parents, parentId must match UID
-      allow create: if isParent()
-        && request.auth.uid == request.resource.data.parentId
-        && request.resource.data.familyId == getUserFamily(request.auth.uid)
-        && request.resource.data.xp is int
-        && request.resource.data.xp >= 1
-        && request.resource.data.xp <= 9999
-        && request.resource.data.status == 'pending'
-        && request.resource.data.keys().hasAll([
-             'title', 'description', 'xp', 'status',
-             'parentId', 'assignedToUid', 'familyId', 'createdAt', 'dueDate'
-           ]);
-
-      // Update:
-      // Parent: full rights (approve, reject, edit) — but parentId is immutable
-      // Kid: STRICTLY limited — only submit proof
-      allow update: if (
-        // Parent may update any non-family-breaking fields for tasks in their family
-        isParentOf(resource.data)
-        && request.resource.data.parentId == resource.data.parentId
-        && request.resource.data.familyId == resource.data.familyId
-      ) || (
-        // Kid may only submit proof (transition pending -> pending_approval)
-        isAssignedKid(resource.data)
-        && resource.data.status == 'pending'
-        && request.resource.data.diff(resource.data)
-             .affectedKeys()
-             .hasOnly(['status', 'proofUrl', 'completedAt', 'proofNote'])
-        && request.resource.data.status == 'pending_approval'
-        && request.resource.data.parentId == resource.data.parentId
-        && request.resource.data.assignedToUid == resource.data.assignedToUid
-        && request.resource.data.xp == resource.data.xp
+      // User CANNOT modify their own role. Only admin can modify roles.
+      allow update: if isAdmin() || (
+        isUser(userId)
+        && isValidDocSize(15)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+        && (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() <= 100))
+        // Children cannot alter parentOf or teacherOf relations
+        && (resource.data.role != 'child' || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['parentOf', 'teacherOf']))
       );
 
-      // Delete: Only the parent who owns the task, only if not yet approved
-      allow delete: if isParentOf(resource.data)
-        && resource.data.status != 'completed';
+      allow delete: if isAdmin() || isUser(userId);
     }
 
-    // ── FamilyCodes Collection ────────────────────────────────────────
-    // FIX: Previously ANY signed-in user could read ALL codes (enumeration risk)
-    // Now: Parent can read their OWN code; kid verifies via Cloud Function only
-    match /FamilyCodes/{code} {
-      // Allow only the parent who generated the code to read it
-      allow read: if isSignedIn() && request.auth.uid == resource.data.parentId;
+    // =====================================================================
+    // TASKS COLLECTION: tasks/{taskId}
+    // Fields: userId, subject, status ('pending'|'done'|'missed'), completedAt
+    // =====================================================================
+    match /tasks/{taskId} {
+      function isValidTaskPayload() {
+        return isValidDocSize(20)
+          && request.resource.data.keys().hasAll(['userId', 'subject', 'status', 'createdAt'])
+          && request.resource.data.userId is string
+          && request.resource.data.subject is string
+          && request.resource.data.subject.size() >= 1
+          && request.resource.data.subject.size() <= 100
+          && request.resource.data.status in ['pending', 'done', 'missed']
+          && (!('completedAt' in request.resource.data) || request.resource.data.completedAt == null || request.resource.data.completedAt is timestamp)
+          && (!('title' in request.resource.data) || (request.resource.data.title is string && request.resource.data.title.size() <= 200));
+      }
 
-      // Parent may create a family code for their family (write-only from client)
-      allow create: if isParent()
-        && request.auth.uid == request.resource.data.parentId
-        && request.resource.data.familyId == getUserFamily(request.auth.uid)
-        && request.resource.data.keys().hasAll(['parentId', 'familyId', 'createdAt', 'expiresAt']);
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid)
+        || isParentOf(resource.data.userId)
+        || isTeacherOf(resource.data.userId);
 
-      // Parent may delete their own code
-      allow delete: if isSignedIn() && request.auth.uid == resource.data.parentId;
+      // Child can create own task; Teacher can create tasks for their students.
+      // Parents CANNOT create or assign tasks directly.
+      allow create: if isAdmin() || (
+        isValidTaskPayload() && (
+          (request.auth.uid == request.resource.data.userId) ||
+          isTeacherOf(request.resource.data.userId)
+        )
+      );
 
-      // Kids and other clients should use a secure Cloud Function to verify codes.
+      // Child can update own task status; Teacher can update assignments for their students.
+      // Parents CANNOT modify child's tasks directly.
+      // Task userId cannot be changed (reassigned to another kid).
+      allow update: if isAdmin() || (
+        isValidTaskPayload()
+        && request.resource.data.userId == resource.data.userId
+        && (
+          (request.auth.uid == resource.data.userId) ||
+          isTeacherOf(resource.data.userId)
+        )
+      );
+
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid && resource.data.status == 'pending')
+        || isTeacherOf(resource.data.userId);
     }
 
-    // ── Rewards Collection ────────────────────────────────────────────
-    // FIX: Previously ANY signed-in user could read ALL rewards (cross-family leak)
-    // Now: Only parent or kids linked to that parent can read
-    match /Rewards/{rewardId} {
-      // Only parent or kids belonging to the same family can read rewards
-      allow read: if isSignedIn()
-        && resource.data.familyId == getUserFamily(request.auth.uid);
+    // =====================================================================
+    // STREAKS COLLECTION: streaks/{userId}
+    // =====================================================================
+    match /streaks/{userId} {
+      allow read: if isAdmin()
+        || isUser(userId)
+        || isParentOf(userId)
+        || isTeacherOf(userId);
 
-      // Only parent may create rewards for their family
-      allow create: if isParent()
-        && request.auth.uid == request.resource.data.parentId
-        && request.resource.data.familyId == getUserFamily(request.auth.uid)
-        && request.resource.data.xpCost is int
-        && request.resource.data.xpCost >= 1
-        && request.resource.data.keys().hasAll(['title', 'xpCost', 'parentId', 'familyId', 'createdAt']);
-
-      // parentId & familyId must be immutable on update
-      allow update: if isSignedIn()
-        && request.auth.uid == resource.data.parentId
-        && request.resource.data.parentId == resource.data.parentId
-        && request.resource.data.familyId == resource.data.familyId;
-
-      allow delete: if isSignedIn()
-        && request.auth.uid == resource.data.parentId;
+      // Parents CANNOT modify streaks. Only user or admin can write.
+      allow write: if isAdmin() || (
+        isUser(userId)
+        && isValidDocSize(10)
+        && request.resource.data.keys().hasAll(['currentStreak', 'bestStreak', 'updatedAt'])
+        && request.resource.data.currentStreak is int
+        && request.resource.data.currentStreak >= 0
+        && request.resource.data.bestStreak is int
+        && request.resource.data.bestStreak >= 0
+      );
     }
 
-    // ── RewardClaims Collection ───────────────────────────────────────
-    // Only Cloud Functions create claims; parent/kid can read their own
-    match /RewardClaims/{claimId} {
-      allow read: if isSignedIn()
-        && (resource.data.kidId == request.auth.uid
-            || resource.data.parentId == request.auth.uid);
+    // =====================================================================
+    // REWARDS COLLECTION: rewards/{userId}
+    // =====================================================================
+    match /rewards/{userId} {
+      allow read: if isAdmin()
+        || isUser(userId)
+        || isParentOf(userId)
+        || isTeacherOf(userId);
 
-      // Parent marks claim as delivered
-      allow update: if isSignedIn()
-        && resource.data.parentId == request.auth.uid
-        && request.resource.data.diff(resource.data)
-             .affectedKeys()
-             .hasOnly(['status']);
-
-      allow create: if false; // Only Cloud Functions
-      allow delete: if false;
+      // Parents CANNOT modify rewards directly (rewards are claimed via transactions/functions or child store)
+      allow write: if isAdmin() || (
+        isUser(userId)
+        && isValidDocSize(15)
+        && (!('balance' in request.resource.data) || (request.resource.data.balance is int && request.resource.data.balance >= 0))
+      );
     }
 
-    // ── Notifications Collection ──────────────────────────────────────
-    match /Notifications/{notifId} {
-      allow read: if isSignedIn()
-        && resource.data.recipientId == request.auth.uid;
+    // =====================================================================
+    // SUGGESTIONS COLLECTION: suggestions/{userId}
+    // AI generated — Read-only for User and Parent. Client write is FORBIDDEN.
+    // Writes happen strictly through Firebase Admin SDK (Cloud Functions).
+    // =====================================================================
+    match /suggestions/{userId} {
+      allow read: if isAdmin()
+        || isUser(userId)
+        || isParentOf(userId);
 
-      allow update: if isSignedIn()
-        && resource.data.recipientId == request.auth.uid
-        && request.resource.data.diff(resource.data)
-             .affectedKeys()
-             .hasOnly(['isRead']);
-
-      // Only Cloud Functions create notifications
-      allow create: if false;
-      allow delete: if isSignedIn()
-        && resource.data.recipientId == request.auth.uid;
+      allow write: if isAdmin();
     }
 
-    // ── Default: Deny everything else ─────────────────────────────────
-    // Catch-all: If a document contains `familyId`, require the caller
-    // belongs to the same family. Do NOT allow arbitrary client-side creates
-    // via this catch-all; only allow reads/updates/deletes within family.
+    // =====================================================================
+    // NOTIFICATIONS COLLECTION: notifications/{userId}/items/{notifId}
+    // Strictly private to the individual user.
+    // =====================================================================
+    match /notifications/{userId} {
+      allow read, write: if isAdmin() || isUser(userId);
+
+      match /items/{notifId} {
+        allow read: if isAdmin() || isUser(userId);
+
+        allow create: if isAdmin() || (
+          isUser(userId)
+          && isValidDocSize(10)
+          && request.resource.data.keys().hasAll(['title', 'body', 'read', 'createdAt'])
+          && request.resource.data.title is string
+          && request.resource.data.title.size() <= 150
+          && request.resource.data.read is bool
+        );
+
+        allow update: if isAdmin() || (
+          isUser(userId)
+          && isValidDocSize(10)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdAt'])
+        );
+
+        allow delete: if isAdmin() || isUser(userId);
+      }
+    }
+
+    // =====================================================================
+    // DEFAULT DENY FOR ALL OTHER COLLECTIONS
+    // =====================================================================
     match /{document=**} {
-      // Reads: if resource has familyId, require same family
-      allow get, list: if (
-        (resource.data.familyId != null && sameFamily(resource.data.familyId))
-        ||
-        (request.resource != null && request.resource.data.familyId != null && sameFamily(request.resource.data.familyId))
-      );
-
-      // Disallow client-side creates in arbitrary collections via catch-all.
-      allow create: if false;
-
-      // Updates: ensure familyId is immutable and caller is in same family
-      allow update: if resource.data.familyId != null
-        && sameFamily(resource.data.familyId)
-        && request.resource.data.familyId == resource.data.familyId;
-
-      // Deletes: only allowed for same-family parents
-      allow delete: if resource.data.familyId != null && isParent() && sameFamily(resource.data.familyId);
+      allow read, write: if false;
     }
   }
 }

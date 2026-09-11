@@ -1,4 +1,4 @@
-name: CI
+name: CI & Quality Assurance
 
 on:
   push:
@@ -7,32 +7,96 @@ on:
     branches: [master, main]
 
 jobs:
-  lint-and-test:
+  test:
+    name: Run Linter, Typecheck & Unit Tests
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install Monorepo Root Dependencies
         run: npm ci
 
-      - name: TypeScript type check
-        run: npx tsc --noEmit
+      - name: Install Frontend Dependencies
+        working-directory: ./Frontend
+        run: npm ci
 
-      - name: Lint
+      - name: Frontend TypeScript Check
+        working-directory: ./Frontend
+        run: npm run type-check
+
+      - name: Frontend Linting
+        working-directory: ./Frontend
         run: npm run lint
 
-      - name: Run tests with coverage
+      - name: Run Jest Unit Tests (60% Minimum Coverage Threshold)
+        working-directory: ./Frontend
         run: npm run test:coverage
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        if: success()
+      - name: Upload Test Coverage Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          fail_ci_if_error: false
+          name: coverage-report
+          path: Frontend/coverage/
+
+  rules-test:
+    name: Test Firebase Security Rules
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Install Backend Dependencies
+        working-directory: ./Backend/functions
+        run: npm ci
+
+      - name: Run Firestore Rules Suite with Firebase Emulator
+        run: |
+          firebase emulators:exec --only firestore "npm --prefix Frontend test __tests__/services"
+        env:
+          FIREBASE_PROJECT_ID: kidquest-ci-test
+
+  build-and-deploy-check:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: [test, rules-test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install School Portal Dependencies & Build Web
+        working-directory: ./school-portal
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Cloud Functions (TypeScript)
+        working-directory: ./Backend/functions
+        run: |
+          npm ci
+          npm run build

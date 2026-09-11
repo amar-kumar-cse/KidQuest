@@ -154,11 +154,27 @@ export const taskService = {
   },
 
   /**
-   * Fetch all tasks for a parent (one-shot, not real-time).
+   * Complete a task directly (updates status to completed).
    */
-  async getParentTasks(parentId: string): Promise<Task[]> {
-    const q = query(collection(db, 'Tasks'), where('parentId', '==', parentId));
+  async completeTask(taskId: string): Promise<void> {
+    await updateDoc(doc(db, 'Tasks', taskId), {
+      status: 'completed',
+      completedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  /**
+   * Fetch all tasks assigned to a specific user/kid.
+   */
+  async getTasksByUser(userId: string): Promise<Task[]> {
+    const q = query(
+      collection(db, 'Tasks'),
+      where('assignedToUid', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Task));
   },
 };
+

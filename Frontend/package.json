@@ -12,6 +12,7 @@
     "type-check": "tsc --noEmit",
     "test": "jest --watchAll=false",
     "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
     "format": "prettier --write \"**/*.{ts,tsx,js,json}\""
   },
   "dependencies": {
