@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateKidCustomToken = exports.processDeletionJob = exports.deleteAccount = exports.onUserDeleted = exports.onTaskApproved = exports.onTaskSubmitted = exports.recreateRecurringTasks = exports.sendInactivityNudges = exports.resetDailyStreaks = exports.generateFamilyCode = exports.verifyFamilyCode = exports.claimReward = exports.completeTaskTransaction = exports.verifyProof = exports.suggestTasks = exports.createTask = exports.processTaskApproval = exports.rejectTask = exports.approveTask = void 0;
+exports.sendTestReport = exports.weeklyProgressReportCron = exports.generateKidCustomToken = exports.processDeletionJob = exports.deleteAccount = exports.onUserDeleted = exports.onTaskApproved = exports.onTaskSubmitted = exports.onMessageCreated = exports.createOrGetChat = exports.recreateRecurringTasks = exports.sendInactivityNudges = exports.resetDailyStreaks = exports.generateFamilyCode = exports.verifyFamilyCode = exports.claimReward = exports.completeTaskTransaction = exports.verifyProof = exports.generateStudySuggestions = exports.suggestTasks = exports.createTask = exports.processTaskApproval = exports.rejectTask = exports.approveTask = void 0;
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
 // Export all callable functions
@@ -47,6 +47,8 @@ var createTask_1 = require("./tasks/createTask");
 Object.defineProperty(exports, "createTask", { enumerable: true, get: function () { return createTask_1.createTask; } });
 var suggestTasks_1 = require("./ai/suggestTasks");
 Object.defineProperty(exports, "suggestTasks", { enumerable: true, get: function () { return suggestTasks_1.suggestTasks; } });
+var generateStudySuggestions_1 = require("./ai/generateStudySuggestions");
+Object.defineProperty(exports, "generateStudySuggestions", { enumerable: true, get: function () { return generateStudySuggestions_1.generateStudySuggestions; } });
 var verifyProof_1 = require("./ai/verifyProof");
 Object.defineProperty(exports, "verifyProof", { enumerable: true, get: function () { return verifyProof_1.verifyProof; } });
 var completeTaskTransaction_1 = require("./tasks/completeTaskTransaction");
@@ -66,6 +68,11 @@ var sendInactivityNudges_1 = require("./scheduled/sendInactivityNudges");
 Object.defineProperty(exports, "sendInactivityNudges", { enumerable: true, get: function () { return sendInactivityNudges_1.sendInactivityNudges; } });
 var recreateRecurringTasks_1 = require("./scheduled/recreateRecurringTasks");
 Object.defineProperty(exports, "recreateRecurringTasks", { enumerable: true, get: function () { return recreateRecurringTasks_1.recreateRecurringTasks; } });
+// Export Parent-Teacher Messaging functions
+var createOrGetChat_1 = require("./messaging/createOrGetChat");
+Object.defineProperty(exports, "createOrGetChat", { enumerable: true, get: function () { return createOrGetChat_1.createOrGetChat; } });
+var onMessageCreated_1 = require("./messaging/onMessageCreated");
+Object.defineProperty(exports, "onMessageCreated", { enumerable: true, get: function () { return onMessageCreated_1.onMessageCreated; } });
 // Export Firestore trigger functions
 var onTaskSubmitted_1 = require("./notifications/onTaskSubmitted");
 Object.defineProperty(exports, "onTaskSubmitted", { enumerable: true, get: function () { return onTaskSubmitted_1.onTaskSubmitted; } });
@@ -80,4 +87,9 @@ var processDeletionJob_1 = require("./users/processDeletionJob");
 Object.defineProperty(exports, "processDeletionJob", { enumerable: true, get: function () { return processDeletionJob_1.processDeletionJob; } });
 var generateKidCustomToken_1 = require("./users/generateKidCustomToken");
 Object.defineProperty(exports, "generateKidCustomToken", { enumerable: true, get: function () { return generateKidCustomToken_1.generateKidCustomToken; } });
+// Export Weekly Progress Report functions
+var weeklyReportJob_1 = require("./reports/weeklyReportJob");
+Object.defineProperty(exports, "weeklyProgressReportCron", { enumerable: true, get: function () { return weeklyReportJob_1.weeklyProgressReportCron; } });
+var sendTestReport_1 = require("./reports/sendTestReport");
+Object.defineProperty(exports, "sendTestReport", { enumerable: true, get: function () { return sendTestReport_1.sendTestReport; } });
 //# sourceMappingURL=index.js.map

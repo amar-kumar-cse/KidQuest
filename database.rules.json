@@ -1,0 +1,41 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "chats": {
+      "$chatId": {
+        // Only verified chat members (parent & teacher) can read chat content
+        ".read": "auth != null && data.child('members').child(auth.uid).val() === true",
+
+        "metadata": {
+          ".write": "auth != null && (data.parent().child('members').child(auth.uid).val() === true || (!data.exists() && newData.parent().child('members').child(auth.uid).val() === true))"
+        },
+
+        "members": {
+          ".write": "auth != null && (!data.exists() || data.child(auth.uid).val() === true)"
+        },
+
+        "messages": {
+          ".indexOn": ["timestamp", "senderId"],
+          "$messageId": {
+            // Write allowed only if user is in members, senderId matches auth.uid, and text payload is validated
+            ".write": "auth != null && root.child('chats').child($chatId).child('members').child(auth.uid).val() === true && (
+              (!data.exists() && newData.child('senderId').val() === auth.uid && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 2000 && newData.child('timestamp').isNumber()) ||
+              (data.exists() && newData.child('readBy').child(auth.uid).val() === true)
+            )"
+          }
+        }
+      }
+    },
+
+    "user_chats": {
+      "$userId": {
+        // Users can only read and write their own conversation index
+        ".read": "auth != null && auth.uid === $userId",
+        ".write": "auth != null && auth.uid === $userId",
+        ".indexOn": ["updatedAt", "lastMessageTimestamp"]
+      }
+    }
+  }
+}

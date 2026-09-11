@@ -8,7 +8,7 @@ describe('TaskCard Component Tests', () => {
     id: 'task-001',
     title: 'Morning Toothbrush Quest',
     description: 'Brush for a full 2 minutes with timer',
-    category: 'health',
+    category: 'exercise',
     difficulty: 'easy',
     xp: 30,
     status: 'pending',

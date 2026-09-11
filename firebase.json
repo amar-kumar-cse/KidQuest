@@ -19,6 +19,9 @@
     "rules": "Backend/firestore.rules",
     "indexes": "Backend/firestore.indexes.json"
   },
+  "database": {
+    "rules": "database.rules.json"
+  },
   "storage": {
     "rules": "Backend/storage.rules"
   },

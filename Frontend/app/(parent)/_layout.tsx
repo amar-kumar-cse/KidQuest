@@ -8,6 +8,8 @@ export default function ParentLayout() {
       <Stack.Screen name="rewards" />
       <Stack.Screen name="analytics" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="messages/index" />
+      <Stack.Screen name="messages/[chatId]" />
     </Stack>
   );
 }

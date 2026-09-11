@@ -9,6 +9,7 @@ import { useParentTasks } from '../../hooks/useTasks';
 import type { Task } from '../../types';
 import Animated, { FadeInUp, Layout } from 'react-native-reanimated';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useChatStore } from '../../store/useChatStore';
 
 export default function ParentDashboard() {
   const router = useRouter();
@@ -20,6 +21,17 @@ export default function ParentDashboard() {
   const { tasks, isLoading: tasksLoading } = useParentTasks(auth.currentUser?.uid);
   const pendingApprovals = tasks.filter(t => t.status === 'pending_approval');
   const loading = tasksLoading || linkedKidsLoading;
+
+  const totalUnreadChatCount = useChatStore((state) => state.totalUnreadCount);
+  const subscribeToConversations = useChatStore((state) => state.subscribeToConversations);
+
+  useEffect(() => {
+    const parentUid = auth.currentUser?.uid;
+    if (parentUid) {
+      const unsub = subscribeToConversations(parentUid);
+      return () => unsub();
+    }
+  }, [auth.currentUser?.uid]);
 
   // Fetch parent's linked kids and listen to their XP
   useEffect(() => {
@@ -159,6 +171,17 @@ export default function ParentDashboard() {
               {unreadCount > 0 && (
                 <View className="absolute top-0 right-0 bg-red-500 w-5 h-5 rounded-full items-center justify-center border-2 border-white">
                   <Text className="text-white text-[10px] font-bold">{unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity 
+              className="w-12 h-12 bg-white rounded-full items-center justify-center border border-slate-100 mr-2 relative"
+              onPress={() => router.push('/(parent)/messages' as any)}
+            >
+              <Text className="text-xl">💬</Text>
+              {totalUnreadChatCount > 0 && (
+                <View className="absolute top-0 right-0 bg-indigo-600 w-5 h-5 rounded-full items-center justify-center border-2 border-white">
+                  <Text className="text-white text-[10px] font-bold">{totalUnreadChatCount}</Text>
                 </View>
               )}
             </TouchableOpacity>

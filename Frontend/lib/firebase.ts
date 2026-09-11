@@ -3,6 +3,7 @@ import { initializeAuth, browserLocalPersistence, inMemoryPersistence, connectAu
 import { initializeFirestore, persistentLocalCache, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
+import { getDatabase, connectDatabaseEmulator } from 'firebase/database';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
@@ -35,6 +36,9 @@ export const db = initializeFirestore(app, {
 // Firebase Storage (for photo uploads)
 export const storage = getStorage(app);
 
+// Firebase Realtime Database (ultra-low latency for Parent-Teacher messaging)
+export const rtdb = getDatabase(app);
+
 // Cloud Functions — Mumbai region (asia-south1) for lower latency in India
 export const functions = getFunctions(app, 'asia-south1');
 
@@ -60,6 +64,9 @@ if (__DEV__) {
     
     // Firestore emulator port is 8083
     connectFirestoreEmulator(db, localIp, 8083);
+
+    // Realtime Database emulator port is 9000
+    connectDatabaseEmulator(rtdb, localIp, 9000);
     
     // Functions emulator port is 5002
     connectFunctionsEmulator(functions, localIp, 5002);

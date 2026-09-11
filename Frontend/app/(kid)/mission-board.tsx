@@ -13,6 +13,7 @@ import { useAppStore } from '../../store/useAppStore';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import MissionCard from '../../components/MissionCard';
+import { AISuggestionCard } from '../../components/AISuggestionCard';
 import KidQuestLogo from '../../components/KidQuestLogo';
 import SkeletonLoader from '../../components/SkeletonLoader';
 import { useKidTasks } from '../../hooks/useTasks';
@@ -205,6 +206,9 @@ export default function MissionBoard() {
             <Text className="text-sm font-bold text-[#000080]">🎯 Focus</Text>
           </TouchableOpacity>
         </View>
+
+        {/* AI Study Coach Suggestions */}
+        <AISuggestionCard />
 
         {loading ? (
           <SkeletonLoader rows={5} rowHeight={72} style={{ marginTop: 8 }} />

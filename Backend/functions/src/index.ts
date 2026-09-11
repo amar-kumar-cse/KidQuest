@@ -7,6 +7,7 @@ export { rejectTask } from './tasks/rejectTask';
 export { processTaskApproval } from './tasks/processTaskApproval';
 export { createTask } from './tasks/createTask';
 export { suggestTasks } from './ai/suggestTasks';
+export { generateStudySuggestions } from './ai/generateStudySuggestions';
 export { verifyProof } from './ai/verifyProof';
 export { completeTaskTransaction } from './tasks/completeTaskTransaction';
 
@@ -22,6 +23,10 @@ export { resetDailyStreaks } from './scheduled/resetDailyStreaks';
 export { sendInactivityNudges } from './scheduled/sendInactivityNudges';
 export { recreateRecurringTasks } from './scheduled/recreateRecurringTasks';
 
+// Export Parent-Teacher Messaging functions
+export { createOrGetChat } from './messaging/createOrGetChat';
+export { onMessageCreated } from './messaging/onMessageCreated';
+
 // Export Firestore trigger functions
 export { onTaskSubmitted } from './notifications/onTaskSubmitted';
 export { onTaskApproved } from './notifications/onTaskApproved';
@@ -31,3 +36,7 @@ export { onUserDeleted } from './users/onUserDeleted';
 export { deleteAccount } from './users/deleteAccount';
 export { processDeletionJob } from './users/processDeletionJob';
 export { generateKidCustomToken } from './users/generateKidCustomToken';
+
+// Export Weekly Progress Report functions
+export { weeklyProgressReportCron } from './reports/weeklyReportJob';
+export { sendTestReport } from './reports/sendTestReport';
