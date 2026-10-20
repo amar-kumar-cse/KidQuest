@@ -64,7 +64,6 @@
           "organization": "your-sentry-org"
         }
       ],
-      "@sentry/react-native",
       "expo-font"
     ],
     "extra": {
