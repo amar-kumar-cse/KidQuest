@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const STUDENTS = [
   { id: 1, name: 'Alice Smith', xp: 4500, level: 8, status: 'Active', trend: '+150 this week' },
