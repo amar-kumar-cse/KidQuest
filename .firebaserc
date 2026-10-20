@@ -1,7 +1,7 @@
 {
   "projects": {
-    "default": "kidquest-prod",
-    "production": "kidquest-prod",
-    "staging": "kidquest-staging"
+    "default": "kidquest-45298",
+    "production": "kidquest-45298",
+    "staging": "kidquest-45298"
   }
 }
