@@ -3,6 +3,7 @@ name: Deploy Production (Functions & Portal)
 on:
   push:
     branches: [main, master]
+  workflow_dispatch:
 
 concurrency:
   group: deploy-prod
@@ -41,15 +42,26 @@ jobs:
       - name: Deploy Cloud Functions and School Portal Hosting
         id: firebase_deploy
         run: |
-          firebase deploy --only functions,hosting,firestore:rules,firestore:indexes,storage --project ${{ secrets.FIREBASE_PROJECT_ID }}
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::warning title=Missing Secret::FIREBASE_TOKEN secret is not set in GitHub repository settings. Skipping deploy until secrets are configured."
+            echo "To enable automated deployments, go to GitHub Repo -> Settings -> Secrets and variables -> Actions and add FIREBASE_TOKEN."
+            exit 0
+          fi
+          firebase deploy --only functions,hosting,firestore:rules,firestore:indexes,storage --project "${FIREBASE_PROJECT_ID:-kidquest-45298}"
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
 
       # ─── Slack / Discord Notifications ───────────────────────────────────────
       - name: Notify Notification Webhook on Success
-        if: success() && (secrets.SLACK_WEBHOOK_URL != '' || secrets.DISCORD_WEBHOOK_URL != '')
+        if: success()
+        env:
+          WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}"
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "No webhook URL configured (SLACK_WEBHOOK_URL or DISCORD_WEBHOOK_URL). Skipping notification."
+            exit 0
+          fi
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
           COMMIT_AUTHOR="${{ github.actor }}"
           REF_NAME="${{ github.ref_name }}"
@@ -66,9 +78,14 @@ jobs:
           curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "$WEBHOOK_URL"
 
       - name: Notify Notification Webhook on Failure
-        if: failure() && (secrets.SLACK_WEBHOOK_URL != '' || secrets.DISCORD_WEBHOOK_URL != '')
+        if: failure()
+        env:
+          WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}"
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "No webhook URL configured (SLACK_WEBHOOK_URL or DISCORD_WEBHOOK_URL). Skipping notification."
+            exit 0
+          fi
           COMMIT_AUTHOR="${{ github.actor }}"
           REF_NAME="${{ github.ref_name }}"
           REPO="${{ github.repository }}"
