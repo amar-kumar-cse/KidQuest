@@ -1,20 +1,40 @@
-# 🔍 KidQuest Comprehensive Audit Report (Phase 0)
+# 🔍 KidQuest Comprehensive Production-Readiness Audit Report (Phase 0)
 
-**Date:** October 20, 2026  
-**Auditor:** Senior React Native & Firebase Systems Engineer  
+**Date:** October 26, 2026  
+**Auditor:** Senior React Native & Firebase Systems Architect  
 **Repository:** `amar-kumar-cse/KidQuest`  
-**Target:** Production-Ready, COPPA/DPDP-Compliant Android & iOS App  
+**Target:** Production-Ready, COPPA/DPDP-Compliant Android & iOS App + Teacher Web Portal  
+**Philosophy:** Ponytail (Minimalist, YAGNI, robust) + UI/UX Pro Max (Accessible, Kids-grade UI, i18n)
 
 ---
 
 ## 1. Executive Summary
 
-KidQuest has a solid UI foundation (Expo SDK 54, Expo Router, NativeWind) and working frontend unit tests (51/51 passing). However, the repository currently sits in a **fragile prototype state with critical blockers**:
-1. **Fatal Schema Mismatch:** Security rules (`Backend/firestore.rules`) protect a lowercase schema (`users`, `tasks`) while both the mobile app and Cloud Functions write to PascalCase (`Users`, `Tasks`). Deploying these rules will immediately crash 100% of client operations with `PERMISSION_DENIED`.
-2. **Auth Persistence Bug:** Native mobile Firebase Auth is configured with `inMemoryPersistence`. Users get logged out every time the app closes.
-3. **Broken CI & Orphaned Rules Tests:** CI claims to test Firestore rules but actually reruns a frontend service test. The actual rules test suite (`Backend/tests/`) cannot execute because `Backend` lacks a `package.json` and `@firebase/rules-unit-testing` is nowhere in `node_modules`.
-4. **School Portal is a Mock Prototype:** The educator portal is an unintegrated static React component with a failing TypeScript build (`TS6133`).
-5. **COPPA / Child Privacy Vulnerabilities:** Storage rules allow any signed-in user to view all child task proof photos; kids are registered with individual emails and passwords instead of parent-managed profiles.
+KidQuest ka core foundation (Expo SDK 54, React Native 0.81, Expo Router v6, NativeWind, Zustand) kaafi promising hai. Frontend ke 51 unit tests pass ho rahe hain, Expo SDK patch versions aligned hain, aur `expo-doctor` ke 18/18 checks pass hain.
+
+Lekin repo abhi bhi **critical production blockers** par atka hua hai jo launch se pehle solve hone mandatory hain:
+
+1. **Schema & Collection Name Schizophrenia (Fatal Blocker):**
+   - `Backend/firestore.rules` lowercase collections protect karta hai (`users`, `tasks`, `streaks`, `rewards`).
+   - `Frontend/services/` aur `Backend/functions/src/` mostly PascalCase collections (`Users`, `Tasks`, `Rewards`, `FamilyCodes`) me write karte hain.
+   - Par `Backend/functions/src/` ke andar bhi inconsistency hai: `reports/` aur `messaging/` lowercase `users` use karte hain, jabki `tasks/` aur `users/` PascalCase `Users` use karte hain!
+   - Firestore case-sensitive hota hai. Rules deploy hote hi client operations `PERMISSION_DENIED` se crash honge.
+2. **Core Product Inversion in Security Rules:**
+   - `firestore.rules` explicitly parent ko task assign karne se block karta hai (`Parents CANNOT create or assign tasks directly`). Jabki KidQuest ka main feature hi parent-assigned chore management hai!
+   - Required fields mismatch: Rules `userId` aur `subject` maangti hain, jabki mobile app `assignedToUid`, `title`, `category`, `parentId` bhejta hai.
+3. **Child Privacy & COPPA/DPDP Violations:**
+   - `Backend/storage.rules` me `allow read: if isSignedIn();` hai — koi bhi signed-in user doosre bacchon ki proof photos dekh aur download kar sakta hai!
+   - Bacche email aur password se register ho rahe hain (`authService.ts: registerKid`), bina verifiable parental consent ke. Under-13 bacchon ka PII bina parent approval ke lena illegal hai.
+4. **CI Security Rules Testing Fraud & Orphaned Test Suite:**
+   - CI pipeline (`.github/workflows/ci.yml`) claim karti hai ki wo rules test kar rahi hai, par actual me frontend service test chala rahi hai (`taskService.test.ts`).
+   - Actual rules test suite (`Backend/tests/firestore.rules.test.ts`) chal hi nahi sakti kyunki `Backend/` me `package.json` nahi hai aur `@firebase/rules-unit-testing` missing hai.
+5. **School Portal is Pure Mock UI:**
+   - `school-portal/src/App.tsx` me 4 hardcoded students hain, zero Firebase Auth, zero Firestore integration. Ye abhi sirf visual prototype hai.
+6. **No Real Offline-First Database:**
+   - Offline storage sirf ek 90-line ka `AsyncStorage` photo queue hai (`lib/offlineQueue.ts`). Koi local SQLite database ya Drizzle ORM nahi hai, na koi mutation sync queue with retry backoff.
+7. **Zero i18n & Accessibility Gaps:**
+   - App me Hindi ka 1 bhi word nahi hai, na koi i18n framework (`i18next` / `expo-localization`).
+   - Touch targets aur screen reader accessibility labels missing hain.
 
 ---
 
@@ -22,91 +42,86 @@ KidQuest has a solid UI foundation (Expo SDK 54, Expo Router, NativeWind) and wo
 
 ```mermaid
 flowchart TB
-    subgraph RepoRoot ["Monorepo Root (Declared, Not Real Workspaces)"]
-        direction TB
-        confRoot["firebase.json (Root)<br/>Emulators: Auth 9099 | Firestore 8080 | Functions 5001"]
-        pkgRoot["package.json (Orchestrator only, no npm/pnpm workspaces)"]
+    subgraph RepoRoot ["Monorepo Root"]
+        pkg["package.json (Workspaces: Frontend, school-portal, Backend/functions)"]
+        confRoot["firebase.json (Default Ports: Auth 9099 | Firestore 8080 | Functions 5001)"]
     end
 
     subgraph MobileApp ["Frontend/ (Expo SDK 54 + React Native 0.81)"]
-        RN["React Native + Expo Router v6"]
-        Zustand["Zustand (In-Memory Stores)"]
-        AsyncStore["AsyncStorage (Ad-hoc photo upload queue only)"]
-        FBLib["lib/firebase.ts<br/>⚠️ inMemoryPersistence (Mobile logs out on exit)<br/>⚠️ Points to ports 8083, 9098, 5002 (Mismatch with root)"]
+        Router["Expo Router v6 (Tabs: kid, parent)"]
+        Zustand["Zustand In-Memory Stores (taskStore, useAppStore, useChatStore)"]
+        AsyncQ["AsyncStorage (Ad-hoc proof photo queue only)"]
+        FBLib["lib/firebase.ts<br/>- persistentLocalCache enabled<br/>- Aligned emulator ports (8080, 9099, 5001)"]
     end
 
-    subgraph CloudBackend ["Backend/ (Firebase Functions & Rules)"]
-        CF["functions/ (Node 20, TS 5.3)<br/>⚠️ Writes to PascalCase 'Users', 'Tasks'<br/>⚠️ suggestTasks & verifyProof call dummy api.example.com"]
-        Rules["firestore.rules & storage.rules<br/>⚠️ Enforces lowercase 'users', 'tasks'<br/>⚠️ Public read on child photos"]
-        Tests["tests/ (firestore.rules.test.ts)<br/>⚠️ Orphaned: No Backend/package.json, cannot run"]
-        confBackend["firebase.json (Backend)<br/>Emulators: Auth 9098 | Firestore 8083 | Functions 5002"]
+    subgraph BackendServices ["Backend/"]
+        CF["functions/src/ (Node 20, TypeScript)<br/>⚠️ Dual schema: Some files call 'Users', some call 'users'<br/>⚠️ suggestTasks & verifyProof call dummy api.example.com"]
+        Rules["firestore.rules & storage.rules<br/>❌ Case mismatch with app<br/>❌ Child photos publicly readable to any signed-in user<br/>❌ Forbids parent from creating tasks"]
+        BackendConf["firebase.json (Conflicting custom ports: 5002, 8083, 9098)"]
+        OrphanTests["tests/ (firestore.rules.test.ts)<br/>❌ Orphaned: No Backend/package.json, missing dependencies"]
     end
 
-    subgraph Portal ["school-portal/ (Vite 8 + React 19)"]
-        Mock["Single App.tsx with 4 hardcoded students<br/>❌ Zero Firebase auth or queries<br/>❌ TS Build fails (Unused React import)"]
+    subgraph SchoolWeb ["school-portal/ (Vite + React 19)"]
+        ViteApp["App.tsx (4 hardcoded students, 0 Firebase calls)"]
     end
 
-    RN -->|Writes 'Users', 'Tasks'| CloudBackend
-    CF -->|Queries 'Users', 'Tasks'| CloudBackend
-    Rules -.->|Blocks all PascalCase requests| RN
+    Router --> Zustand
+    Zustand --> FBLib
+    FBLib -.->|Writes 'Tasks', 'Users'| BackendServices
+    CF -.->|Queries 'Users' & 'users'| BackendServices
+    Rules -.->|Denies all PascalCase calls| FBLib
 ```
 
-### Key Architectural Findings:
-- **Pseudo-Monorepo:** `package.json` at root is named `kidquest-monorepo`, but lacks `workspaces: ["Frontend", "school-portal", "Backend/functions"]`. Dependencies are siloed in 3 independent `node_modules` trees.
-- **Dual Conflicting `firebase.json`:** Root `firebase.json` uses default ports (Auth 9099, Firestore 8080, Functions 5001). `Backend/firebase.json` uses custom ports (Auth 9098, Firestore 8083, Functions 5002). `Frontend/lib/firebase.ts` connects to Backend's ports, so running `npm run dev` or `npm run emulate` from root causes the mobile app to fail connecting to the emulators.
-- **State Management & Offline Storage:** Zustand stores (`taskStore.ts`, `useTaskStore.ts`, `useAppStore.ts`) are purely in-memory. No SQLite or Drizzle ORM exists. The "offline queue" is a 90-line JSON array in `AsyncStorage` saving photo URIs with no retry backoff or transaction integrity.
+### Architectural Realities:
+- **Workspaces Configured, But Incomplete:** Root `package.json` me workspaces hain, par `Backend/tests` kisi workspace me nahi hai.
+- **Dual `firebase.json` Conflict:** Root `firebase.json` standard ports (9099, 8080, 5001) define karta hai, jabki `Backend/firebase.json` custom ports (9098, 8083, 5002) define karta hai. `Frontend/lib/firebase.ts` ab root ports se aligned hai, par `Backend/firebase.json` dead weight hai.
+- **Client vs Server Authority:** Gamification (XP, streaks, rewards) client-side allow ki gayi hai rules me (`match /streaks/{userId} { allow write: if isUser(userId) }`). Isse koi bhi user client se hack karke unlimited XP le sakta hai.
 
 ---
 
 ## 3. Directory Audit: Live vs. Dead vs. Broken
 
-| Directory / File | Status | Technical Reality |
+| Path | Status | Finding / Analysis |
 |---|---|---|
-| `Frontend/` | **LIVE (Active)** | Expo SDK ~54.0.36, Expo Router 6, NativeWind 4. 51 unit tests pass. |
-| `Frontend/store/taskStore.ts` & `useTaskStore.ts` | **DUPLICATE** | Two separate task stores exist with redundant definitions. |
-| `Backend/functions/` | **LIVE (With Mock APIs)** | Builds with `tsc`, but `suggestTasks.ts` and `verifyProof.ts` call `https://api.example.com/v1/...` instead of genuine Gemini APIs. |
-| `Backend/tests/` | **BROKEN / INOPERABLE** | Rules tests import `@firebase/rules-unit-testing`, but `Backend/` has no `package.json`. Cannot run locally or in CI. |
-| `Backend/scripts/` | **LEGACY / SCRATCH** | `call-complete.js`, `e2e-test.js`, `move-workspace.js`, `reset-project.js` are unmaintained manual test scripts. |
-| `scripts/` (root) | **LEGACY** | Contains `move-workspace.js`, old path migration script. |
-| `school-portal/` | **SEMI-DEAD / MOCK** | Prototype with mock data. Build fails (`npx tsc -b` -> `error TS6133: 'React' is declared but its value is never read`). |
-| `school-portal-old/` | **DEAD / DELETED** | Was already removed in commit `67fb87e` on Aug 2, 2026. Does not exist on disk. |
-| `graphify-out/` | **EMPTY** | Directory exists, but no knowledge graph is populated. |
+| `Frontend/` | **LIVE (Active)** | Expo SDK ~54.0.37, React Native 0.81.5, NativeWind 4, React 19.1.0. 51 unit tests pass. |
+| `Frontend/store/taskStore.ts` & `useTaskStore.ts` | **CONSOLIDATED** | `useTaskStore.ts` ab `taskStore.ts` se re-export karta hai (Resolved in commit `6c254b0`). |
+| `Frontend/lib/offlineQueue.ts` | **PRIMITIVE** | Sirf photo URIs ko `AsyncStorage` me daalta hai. No SQLite, no task sync, no conflict resolution. |
+| `Backend/functions/` | **LIVE (With Mock API Bugs)** | Compiles with `tsc`. Lekin `suggestTasks.ts` aur `verifyProof.ts` dummy URL (`api.example.com`) call karte hain. Schema me `users` vs `Users` mix hai. |
+| `Backend/tests/` | **BROKEN / ORPHANED** | 2 test files hain (`firestore.rules.test.ts`, `rules.test.ts`) par run nahi ho sakte kyunki `@firebase/rules-unit-testing` missing hai aur `Backend/` ka koi `package.json` nahi hai. |
+| `Backend/firebase.json` | **DEAD / CONFLICTING** | Port 8083, 9098, 5002 define karta hai jo root `firebase.json` (8080, 9099, 5001) se clash karte hain. |
+| `Backend/scripts/` & `scripts/` | **CLEANED** | Purane scratch scripts (`move-workspace.js`, `reset-project.js`, etc.) commit `8db8829` me delete ho chuke hain. |
+| `school-portal/` | **PROTOTYPE / SEMI-DEAD** | Builds clean (`tsc -b && vite build`), lekin completely mock data hai. Real auth ya student progress fetching nahi hai. |
+| `school-portal-old/` | **DEAD / DELETED** | Git history me pehle hi delete ho chuka hai, disk par exist nahi karta. |
+| `graphify-out/` | **EMPTY** | Folder bana hua hai par knowledge graph populated nahi hai. |
 
 ---
 
 ## 4. Expo SDK & Dependency Health Check
 
-### Output of `npx expo install --check`
+### 1. `npx expo install --check`
 ```text
-The following packages should be updated for best compatibility with the installed expo version:
-  expo@54.0.36 - expected version: ~54.0.37
-  expo-constants@18.0.13 - expected version: ~18.0.14
-  jest-expo@54.0.17 - expected version: ~54.0.18
+Dependencies are up to date
 ```
+*(Aligned to Expo SDK ~54.0.37)*
 
-### Output of `npx expo-doctor`
+### 2. `npx expo-doctor`
 ```text
-✖ Check that required peer dependencies are installed
-  Missing peer dependency: react-native-worklets
-  Required by: react-native-reanimated (~4.1.1)
-  Advice: Install missing required peer dependency with "npx expo install react-native-worklets"
-  (App may crash in production without this native module!)
-
-✖ Check that packages match versions required by installed Expo SDK (3 patch version mismatches)
+Running 18 checks on your project...
+18/18 checks passed. No issues detected!
 ```
+*(Fixed in commit `47bf40b`: `react-native-worklets` installed, dependencies aligned)*
 
-### Native Build Configuration Issues (`Frontend/app.json` & `Frontend/eas.json`):
-1. **Missing `google-services.json`:** `app.json` line 21 specifies `"googleServicesFile": "./google-services.json"`. The file is missing. Any Android build (`eas build -p android`) will fail immediately.
-2. **Missing EAS Project ID:** `app.json` line 72 has `"projectId": "YOUR_EAS_PROJECT_ID"`.
-3. **Duplicate Sentry Plugins:** `app.json` lines 60 & 67 list both `["@sentry/react-native/expo", {...}]` and `"@sentry/react-native"`.
-4. **No Environment Profiles in `eas.json`:** `eas.json` defines build profiles (`development`, `preview`, `production`) but has no environment variable bindings (`env: { EXPO_PUBLIC_APP_ENV: ... }`).
+### 3. Native App Configuration (`Frontend/app.json` & `eas.json`):
+- `google-services.json`: File `Frontend/google-services.json` exist karti hai, lekin root `.gitignore` me added hai.
+- `app.json`: Line 71 has placeholder `"projectId": "YOUR_EAS_PROJECT_ID"`. Line 64 has placeholder `"organization": "your-sentry-org"`.
+- `eas.json`: 3 profiles configured hain (`development`, `preview`, `production`) with `EXPO_PUBLIC_APP_ENV`. Android ke liye preview me APK aur production me App Bundle set hai. Submit section me placeholder credentials hain.
 
 ---
 
 ## 5. Security Audit: Firestore & Storage Rules
 
-### 🚨 Blocker 1: Total Schema & Collection Name Mismatch
-- `Backend/firestore.rules` declares:
+### 🚨 Blocker 1: Collection Name Mismatch (App Writes PascalCase vs Rules Lowercase)
+- **Rules (`Backend/firestore.rules`):**
   ```javascript
   match /users/{userId} { ... }
   match /tasks/{taskId} { ... }
@@ -114,17 +129,22 @@ The following packages should be updated for best compatibility with the install
   match /rewards/{userId} { ... }
   match /{document=**} { allow read, write: if false; }
   ```
-- `Frontend/services/taskService.ts` and `Backend/functions/src/` declare:
-  ```typescript
-  collection(db, 'Tasks')    // Capital T!
-  collection(db, 'Users')    // Capital U!
-  collection(db, 'Notifications')
-  collection(db, 'RewardClaims')
-  ```
-- **Consequence:** In Firestore, collection names are strictly case-sensitive. All client requests to `'Tasks'` and `'Users'` trigger the default deny rule (`allow read, write: if false;`).
+- **Mobile Code (`Frontend/services/`):**
+  - `collection(db, 'Tasks')` — Capital T!
+  - `doc(db, 'Users', uid)` — Capital U!
+  - `collection(db, 'Rewards')` — Capital R!
+  - `doc(db, 'FamilyCodes', code)` — Capital F!
+- **Impact:** Rules deploy hote hi Firestore ka default rule `allow read, write: if false;` trigger hoga aur 100% client mutations fail ho jayengi.
 
-### 🚨 Blocker 2: Parents Cannot Assign Tasks in Rules
-- Line 118-124 of `Backend/firestore.rules`:
+### 🚨 Blocker 2: Backend Cloud Functions Collection Inconsistency
+- `functions/src/tasks/createTask.ts` queries: `db.collection('Users')` and `db.collection('Tasks')`
+- `functions/src/users/deleteAccount.ts` queries: `db.collection('Users')`
+- `functions/src/reports/weeklyReportJob.ts` queries: `db.collection('users')` (lowercase!)
+- `functions/src/messaging/createOrGetChat.ts` queries: `db.collection('users')` (lowercase!)
+- **Impact:** Functions aapas me hi alag-alag collections padh rahi hain. Weekly report aur chat jobs user data nahi dhoondh payenge agar users `Users` me store hain.
+
+### 🚨 Blocker 3: Parents Cannot Assign Tasks in Rules
+- `firestore.rules` lines 118-125:
   ```javascript
   // Child can create own task; Teacher can create tasks for their students.
   // Parents CANNOT create or assign tasks directly.
@@ -135,105 +155,122 @@ The following packages should be updated for best compatibility with the install
     )
   );
   ```
-- **Consequence:** Directly opposes the core product requirement where parents assign tasks/chores to their children.
+- **Impact:** App ka core flow hi hai ki parent chore/task banata hai. Ye rule seedha parent task creation ko forbid karta hai!
 
-### 🚨 Blocker 3: Field Contract Mismatch in Rules
-- `firestore.rules` demands:
-  `request.resource.data.keys().hasAll(['userId', 'subject', 'status', 'createdAt'])`
-- `Frontend/services/taskService.ts` writes:
-  `title, description, category, difficulty, xp, assignedToUid, assignedToName, parentId, status, dueDate, createdAt, updatedAt`
-- Neither `userId` nor `subject` are sent by the mobile app.
+### 🚨 Blocker 4: Task Schema Payload Contract Broken
+- Rules check: `request.resource.data.keys().hasAll(['userId', 'subject', 'status', 'createdAt'])`
+- Mobile app sends: `title`, `description`, `category`, `difficulty`, `xp`, `assignedToUid`, `assignedToName`, `parentId`, `status`, `dueDate`, `createdAt`, `updatedAt`
+- **Impact:** App na `userId` bhejti hai na `subject` (wo `assignedToUid` aur `category` bhejti hai). Is wajah se `isValidTaskPayload()` hamesha `false` return karega.
 
-### 🚨 Blocker 4: Storage Rules Leak Child Photos to Any Signed-in User
+### 🚨 Blocker 5: Storage Rules Public Leak of Children's Photos
 - `Backend/storage.rules` lines 32 & 47:
   ```javascript
   match /profile-photos/{userId}/{fileName} { allow read: if isSignedIn(); }
   match /task-photos/{taskId}/{fileName}    { allow read: if isSignedIn(); }
   ```
-- **Consequence:** Any user with a valid Firebase Auth token (any child, parent, or third party) can download and view photos of children submitting task proof. Severe violation of **COPPA** (USA) and **DPDP Act 2023** (India).
+- **Impact:** Koi bhi user jo Firebase Auth me login karta hai (any kid or arbitrary email), wo kisi bhi bacche ki submission photos freely read/download kar sakta hai. Serious violation of **COPPA** (US) and **DPDP Act 2023** (India Section 9: Processing of personal data of children).
+- Aur line 44 me `firestore.get(/databases/(default)/documents/tasks/$(taskId)).data.userId` lowercase `tasks` ko dekhta hai, jo PascalCase `Tasks` se fail ho jayega.
 
-### 🚨 Blocker 5: Client-Authoritative Gamification
-- `firestore.rules` allows children to directly overwrite their streaks and balances:
-  ```javascript
-  match /streaks/{userId} { allow write: if isUser(userId)... }
-  match /rewards/{userId} { allow write: if isUser(userId)... }
-  ```
-- A tech-savvy child or malicious client can grant themselves infinite streak and reward points. Gamification ledger must be 100% server-authoritative via Cloud Functions.
+### 🚨 Blocker 6: Client-Authoritative Gamification Cheating
+- `firestore.rules` me child user apna streak aur reward balance directly overwrite kar sakta hai (`allow write: if isUser(userId)`).
+- XP, level, badges, streak, coins sab client se manipulate ho sakte hain. Gamification strictly Cloud Functions atomic transactions se honi chahiye.
 
 ---
 
 ## 6. Secrets & Environment Configuration
 
-| File | Variable | Finding / Risk |
-|---|---|---|
-| `.env` (root) | `EXPO_PUBLIC_GEMINI_API_KEY` | **CRITICAL RISK:** Client env vars starting with `EXPO_PUBLIC_` are compiled directly into the mobile JS bundle. Gemini API key will be extracted by anyone decompiling the APK/IPA. Must be moved to Cloud Functions Secret Manager. |
-| `.env` (root) | `EXPO_PUBLIC_FIREBASE_*` | Contains dummy placeholders (`your_firebase_api_key_here`). |
-| `.env.example` vs `.env.template` | Duplicate files | Two conflicting template files exist with slightly different keys. |
-| `Frontend/lib/firebase.ts` | Fallback Config | Falls back to `'mock-api-key'` and `'demo-no-project'`. |
-| `Backend/functions/src/ai/suggestTasks.ts` | Endpoint | Hardcoded dummy URL: `https://api.example.com/v1/generate`. |
-| `Backend/functions/src/ai/verifyProof.ts` | Endpoint | Hardcoded dummy URL: `https://api.example.com/v1/vision:analyze`. |
-| `Frontend/app.json` | EAS & Sentry | `"projectId": "YOUR_EAS_PROJECT_ID"`, `"organization": "your-sentry-org"`. |
+| Location | Item | Risk Level | Action Required |
+|---|---|---|---|
+| `.env` (root) | `EXPO_PUBLIC_FIREBASE_*` (Project: `kidquest-45298`) | INFO / LOW | Public client keys. Production deployment ke liye Firebase Console me HTTP/Android/iOS restriction lagana zaroori hai. |
+| `.env` (root) | Gemini API Key | **CRITICAL** | Agar kabhi `EXPO_PUBLIC_GEMINI_API_KEY` client bundle me gaya to reverse engineering se leak ho jayega. Gemini calls 100% Cloud Functions ke piche Secret Manager se call hone chahiye. |
+| `Backend/functions/src/ai/suggestTasks.ts` | `https://api.example.com/v1/generate` | **HIGH** | Dummy mock endpoint hardcoded hai. Real Google Generative AI SDK / REST API integrate karna hai. |
+| `Backend/functions/src/ai/verifyProof.ts` | `https://api.example.com/v1/vision:analyze` | **HIGH** | Dummy vision endpoint hardcoded hai. Real Gemini Vision API call karni hai. |
+| `Frontend/app.json` | `"projectId": "YOUR_EAS_PROJECT_ID"` | MEDIUM | EAS build ke waqt real project id se replace hona hai. |
 
 ---
 
 ## 7. README vs. Reality Matrix
 
-| Feature / Area | README Claim | Actual Reality |
+| Feature | README / Documentation Claim | Actual Reality |
 |---|---|---|
-| **School Web Portal** | "High-efficiency teacher dashboard built with Vite and React 19... classroom assignments & progress" | 1 static mock component (`App.tsx`) with 4 hardcoded students, 0 Firebase calls, and broken TypeScript build. |
-| **Offline Architecture** | "Zero-Friction Offline Support: Queue-based offline storage with auto-sync when network reconnects" | Ad-hoc 90-line `AsyncStorage` photo queue. No SQLite, no Drizzle ORM, no offline task database, no exponential backoff. |
-| **Monorepo** | "Monorepo Workspace Structure: Frontend/, Backend/, school-portal/" | Root `package.json` has no `workspaces` declared; separate unlinked `node_modules` in each folder. |
-| **COPPA / Child Privacy** | "Built strictly adhering to child online privacy protection principles" | Children register with individual email/password in `authService.ts`. Storage rules allow any logged-in user to see all kids' photos. |
-| **Parent-Teacher Messaging** | Documented in commit log & quickstart | `database.rules.json` exists for RTDB, but mobile app has no working chat screen wired to it. |
-| **Demo & Screenshots** | YouTube demo link & screenshots | Placeholder link (`YOUR_YOUTUBE_VIDEO_ID`) and placeholder images (`placehold.co`). |
+| **School Web Portal** | "High-efficiency teacher dashboard built with Vite and React 19... classroom assignments & progress" | Ek static React component (`App.tsx`) with 4 hardcoded students, 0 Firebase calls. |
+| **Offline Architecture** | "Zero-Friction Offline Support: Queue-based offline storage with auto-sync when network reconnects" | Sirf 90-line ka `AsyncStorage` photo array. Koi offline task database nahi, koi SQLite nahi, koi conflict resolution nahi. |
+| **COPPA / Child Privacy** | "Built strictly adhering to child online privacy protection principles" | Bacche alag email/password se sign up hote hain. Storage rules me koi bhi signed-in user bacchon ki photos dekh sakta hai. No parent gate on auth switch. |
+| **Security Rules Tests** | "CI executes automated rules unit tests against Firebase Emulator" | CI me `taskService.test.ts` chala kar rules test ka naam diya gaya hai. Real rules test suite (`Backend/tests/`) inoperable hai. |
+| **AI Vision Proof** | "Automated task verification using Gemini AI Vision" | Mock `api.example.com` endpoint hardcoded hai, genuine Gemini Vision model se photo evaluate nahi hoti. |
 
 ---
 
-## 8. Tests & CI/CD Status
+## 8. Offline Storage: Current State (AsyncStorage vs. SQLite)
 
-1. **Frontend Tests:**
-   - **Command:** `npm test` inside `Frontend/`
-   - **Result:** **PASS** (8 test suites, 51 tests passed, runtime ~30s).
-   - Tests cover: `gamification`, `taskService`, `authService`, `streakService`, `rewardService`, `taskStore`, `TaskCard`, `AISuggestionCard`.
-2. **Backend / Security Rules Tests:**
-   - **Command:** `npm --prefix Backend test` or `npm run test:rules`
-   - **Result:** **FAIL / BROKEN.** `Backend` has no `package.json`. Test files `Backend/tests/firestore.rules.test.ts` and `rules.test.ts` fail immediately with module not found for `@firebase/rules-unit-testing`.
-3. **CI Pipeline (`.github/workflows/ci.yml`):**
-   - **Deceptive Test Step:** Job 2 is labeled *"Run Firebase Security Rules Test Suite with Emulator"*, but executes:
-     `npm --prefix Frontend test __tests__/services/taskService.test.ts`
-     It tests a frontend service inside the emulator instead of testing actual security rules!
-   - **School Portal Job:** Runs `npx tsc -b --noEmit` in `school-portal`, which will fail on GitHub Actions due to the TS6133 unused `React` import.
+- **Abhi kya hai:**
+  - `Frontend/lib/offlineQueue.ts`: `AsyncStorage.getItem('kidquest_offline_proof_queue')` me JSON stringified array of `{ taskId, localUri, timestamp }` store hota hai.
+  - `Frontend/lib/firebase.ts`: `initializeFirestore(app, { localCache: persistentLocalCache() })` configured hai, jisse Firestore web/mobile cache use karta hai.
+- **Kyun insufficient hai:**
+  1. `AsyncStorage` 6MB key-value limit aur string serialization pe chalta hai. Large queues ya complex relational filters (pending tasks by child, streak ledger) ke liye unsuited hai.
+  2. Koi retry strategy with exponential backoff nahi hai (sirf array me chhod deta hai).
+  3. No transactional integrity: Agar upload succeed hota hai par Firestore update fail hota hai, to state corrupt ho sakti hai.
+  4. Phase 6 me requirement ke mutabiq `expo-sqlite` + Drizzle ORM aur server-authoritative sync queue lagana padega.
 
 ---
 
-## 9. Comprehensive Issues Table (Prioritized by Severity)
+## 9. Tests & CI/CD Status
 
-| ID | Issue | Severity | Impact | Remediation Plan |
-|---|---|---|---|---|
-| **SEC-01** | `firestore.rules` vs Frontend/Functions collection name & schema mismatch | **BLOCKER** | 100% of mobile app & Cloud Function Firestore operations fail with `PERMISSION_DENIED` if rules are deployed. | Harmonize unified schema (`parents/{uid}`, `children/{childId}`, `tasks/`, `submissions/`). Rewrite `firestore.rules` to match actual app data model. |
-| **SEC-02** | `storage.rules` allows any logged-in user to read all child proof photos | **BLOCKER** | Direct COPPA & DPDP violation; unauthorized users can access minors' photos. | Restrict photo read access: only the child who uploaded, their verified linked parent, and their assigned teacher can read. |
-| **AUT-01** | Mobile Firebase Auth uses `inMemoryPersistence` | **BLOCKER** | User is logged out every time the mobile app is backgrounded or closed. | Configure `initializeAuth` with `@react-native-async-storage/async-storage` via `getReactNativePersistence()`. |
-| **BLD-01** | Missing `react-native-worklets` peer dependency | **BLOCKER** | Mobile app crashes on standalone native Android/iOS builds when Reanimated runs. | Install `react-native-worklets` aligned with Expo SDK 54. |
-| **BLD-02** | Missing `Frontend/google-services.json` | **BLOCKER** | Android native builds via EAS fail immediately. | Add `google-services.json` template/placeholder and setup guidance in docs. |
-| **BLD-03** | `school-portal` TypeScript build fails (`TS6133`) | **BLOCKER** | CI breaks and `npm run deploy:all` fails. | Remove unused `React` import in `school-portal/src/App.tsx`. |
-| **TST-01** | Rules unit tests (`Backend/tests/`) cannot run & CI fakes rules test | **BLOCKER** | No automated guarantee that security rules actually protect child data. | Create proper `Backend/package.json` with `@firebase/rules-unit-testing`, Jest, and update CI. |
-| **SEC-03** | `EXPO_PUBLIC_GEMINI_API_KEY` in client `.env` | **HIGH** | Secret key leakage; high financial and abuse risk. | Remove from client bundle. Shift all Gemini/AI calls strictly to Cloud Functions with Secret Manager. |
-| **DAT-01** | Child accounts registered with email & password | **HIGH** | Incompatible with COPPA / under-13 onboarding and user requirement. | Shift to Parent-governed child profiles: Parent registers, creates Child profiles with PIN/Avatar. |
-| **SEC-04** | Client-writeable streaks and rewards in `firestore.rules` | **HIGH** | Kids can tamper with their XP, streak, and coin balance. | Move reward claiming, streak incrementing, and XP ledger to Cloud Functions atomic transactions. |
-| **ENV-01** | Conflicting emulator ports in root vs Backend `firebase.json` | **HIGH** | Local development environment is broken; frontend cannot communicate with emulators. | Standardize on root `firebase.json` and sync `Frontend/lib/firebase.ts`. |
-| **OFF-01** | No real offline database (AsyncStorage queue only, no SQLite) | **HIGH** | App fails offline when querying tasks; no offline transaction synchronization. | Implement `expo-sqlite` + Drizzle ORM with an idempotent sync queue and conflict resolution. |
-| **ARC-01** | Monorepo is fragmented; no workspaces configured | **MEDIUM** | Duplicate dependencies, redundant scripts, unshared TypeScript types. | Configure npm/pnpm workspaces with `@kidquest/shared` package for types and Zod schemas. |
-| **STR-01** | Duplicate stores (`taskStore.ts` and `useTaskStore.ts`) | **MEDIUM** | Inconsistent state updates across different screens. | Merge into a single authoritative `taskStore.ts`. |
-| **EAS-01** | `eas.json` missing multi-environment configs (dev/preview/prod) | **MEDIUM** | Inability to create isolated staging vs production builds. | Configure explicit EAS profiles with environment variables and release channels. |
-| **DOC-01** | README and docs depict a finished app instead of current reality | **LOW** | Misleading developer setup instructions; broken links and placeholder videos. | Rewrite README with actual mermaid architecture, setup guide, and honest roadmap. |
+| Suite | Command | Result | Details |
+|---|---|---|---|
+| **Frontend Unit Tests** | `npm --prefix Frontend test` | **PASS (51/51)** | 8 test suites pass: auth, tasks, rewards, streaks, gamification, UI cards. |
+| **Frontend Type-Check** | `npm --prefix Frontend run type-check` | **PASS** | `tsc --noEmit` clean exit code 0. |
+| **School Portal Build** | `npm --prefix school-portal run build` | **PASS** | `tsc -b && vite build` clean exit code 0. |
+| **Functions Build** | `npm --prefix Backend/functions run build` | **PASS** | `tsc` clean exit code 0. |
+| **Firebase Rules Tests** | `Backend/tests/firestore.rules.test.ts` | **BROKEN** | Backend me `package.json` missing hai, `@firebase/rules-unit-testing` installed nahi hai. |
+| **GitHub Actions CI** | `.github/workflows/ci.yml` | **MISCONFIGURED** | Job 2 pretends to test security rules by re-running `taskService.test.ts`. Real security rules are never tested in CI. |
 
 ---
 
-## 10. Verification Steps Performed in Phase 0
+## 10. Comprehensive Issues Table (Prioritized by Severity)
 
-1. **Repo Structure Inspection:** Identified root files, `Frontend`, `Backend`, `school-portal`, `.github/workflows`, `.env` files.
-2. **Dependency & Expo Check:** Executed `npx expo install --check` and `npx expo-doctor` in `Frontend/`.
-3. **Type-Check:** Executed `npm run type-check` in `Frontend/` (Passed), `npm run build` in `Backend/functions` (Passed), and `npm run build` in `school-portal` (Failed on TS6133).
-4. **Unit Tests:** Executed `npm test` in `Frontend/` (51 tests passed).
-5. **Security Rules vs. Code Audit:** Compared `Backend/firestore.rules` and `Backend/storage.rules` against `Frontend/services/` and `Backend/functions/src/`.
-6. **Secrets & Config Audit:** Scanned for exposed API keys and verified `.env` files.
+| ID | Category | Severity | Issue Summary | Production Impact | Remediation Plan |
+|---|---|---|---|---|---|
+| **SEC-01** | Security / DB | **BLOCKER** | `firestore.rules` lowercase (`users`, `tasks`) vs Frontend/Backend PascalCase (`Users`, `Tasks`) | 100% of Firestore queries fail with `PERMISSION_DENIED` once rules are active. | Unified schema document karo (`docs/DATA_MODEL.md`) aur rules poore rewrite karo. |
+| **SEC-02** | Child Privacy | **BLOCKER** | `storage.rules` allows any signed-in user to read all child proof photos | Mass COPPA / DPDP violation; stranger users can view minor photos. | Photo reads strictly restricted to child author, verified linked parent, and class teacher. |
+| **SEC-03** | Rules Logic | **BLOCKER** | `firestore.rules` forbids parents from creating or assigning tasks | Core app functionality is impossible under current security rules. | Allow verified parents (`isParentOf(childUid)`) to create and assign tasks. |
+| **SEC-04** | Rules Schema | **BLOCKER** | Payload field mismatch in `isValidTaskPayload()` (`userId`, `subject` vs `assignedToUid`, `title`) | Task creation always rejected by rules. | Align rule validators to exact Zod schema of task payloads. |
+| **TST-01** | Quality / CI | **BLOCKER** | Security rules test suite is orphaned and CI fakes rules test execution | Zero automated verification that child data is protected. | Create `Backend/package.json`, install `@firebase/rules-unit-testing`, fix `ci.yml`. |
+| **COP-01** | Compliance | **BLOCKER** | Kids register directly with email & password without parental consent | Under-13 children legally cannot consent or hold standalone auth credentials. | Parent registers first; children are PIN/avatar profiles under parent's UID. |
+| **SEC-05** | Security / Fraud | **HIGH** | Gamification (XP, streaks, coins) writeable directly by client | Kids can spoof unlimited XP, 999-day streaks, and free reward redemption. | Move XP ledger, streak incrementing, and reward claims strictly to Cloud Functions transactions. |
+| **FNC-01** | Backend Bug | **HIGH** | `Backend/functions/src` has collection name schizophrenia (`users` vs `Users`) | Weekly reports, notifications, and chat fail to locate user profiles. | Standardize all functions to authoritative schema collection names. |
+| **API-01** | AI Integration | **HIGH** | `suggestTasks.ts` and `verifyProof.ts` call dummy endpoint `api.example.com` | AI task suggestion and vision proof verification are completely inoperable in production. | Replace with genuine Google Generative AI SDK with Secret Manager credentials. |
+| **OFF-01** | Architecture | **HIGH** | No local relational database (only primitive `AsyncStorage` photo queue) | App crashes or fails to display tasks/streaks when offline; no mutation queue. | Shift to `expo-sqlite` + Drizzle ORM with an idempotent sync queue (Phase 6). |
+| **POR-01** | School Portal | **HIGH** | `school-portal` is a 100% static mock prototype | Teachers cannot log in, manage classes, or view real student progress. | Connect Firebase Auth, class roster queries, and teacher security rules (Phase 10). |
+| **I18N-01** | UI / UX | **MEDIUM** | Zero i18n support (no Hindi, no localization library installed) | Cannot launch in target market (India - English + Hindi bilingual requirement). | Integrate `i18next` + `expo-localization` and extract all hardcoded strings (Phase 7). |
+| **ACC-01** | Accessibility | **MEDIUM** | Missing `accessibilityLabel`, dynamic font scaling, 44px touch targets on buttons | Fails Google Play / App Store accessibility quality guidelines. | Standardize Button/Card design tokens with WCAG-compliant touch targets (Phase 7). |
+| **ENV-01** | DevEx | **MEDIUM** | Redundant conflicting `Backend/firebase.json` with mismatched emulator ports | Developers running emulators from `Backend/` experience port conflicts. | Delete `Backend/firebase.json` and standardize solely on root `firebase.json`. |
+| **BLD-01** | Build | **MEDIUM** | `app.json` EAS project ID is `"YOUR_EAS_PROJECT_ID"` | EAS cloud builds (`eas build`) will fail without proper project initialization. | Configure proper EAS project link and credentials. |
+| **DOC-01** | Documentation | **LOW** | README claims completed features that are mocks or missing | Developer confusion and onboarding friction. | Rewrite README with actual mermaid architecture, setup guide, and truthful roadmap. |
+
+---
+
+## 11. Skill & Lens Evaluation (Ponytail, UI/UX Pro Max, Autoplan, Autoskill)
+
+1. **/ponytail (Lazy Senior Dev / YAGNI / Minimalist):**
+   - **Over-engineering to cut:** Redundant `Backend/firebase.json`, mock endpoints trying to do complex HTTP calls to non-existent APIs, unused scripts.
+   - **Lazy principle:** Use native Firestore transactions instead of complex multi-step custom microservice logic. Use `expo-sqlite` simply without adding 5 layers of unused abstraction.
+2. **/ui-ux-pro-max (Kids App UX, Accessibility, Responsive, Indian Context):**
+   - **Target Audience:** Kids under 13 + Indian Parents. Needs large visual icons (emojis/illustrations), clear contrast (4.5:1), generous padding (44px+ touch targets), and simple bilingual (Hindi/English) switching.
+   - **Anti-patterns to avoid:** Over-decorated generic AI visuals. We need clean, tactile cards, vibrant playful tokens, and reassuring parent controls.
+3. **/autoplan (Rigor & Phasing):**
+   - Phase 0 completes the baseline truth.
+   - Every following phase (Phase 1 to Phase 11) must be executed in atomic, verifiable steps with exact test commands and no regressions.
+4. **/autoskill / Tool Awareness:**
+   - Use correct terminal commands for Windows PowerShell (no `cd`, use explicit prefixes).
+   - Maintain Git hygiene with conventional commits per phase.
+
+---
+
+## 12. Conclusion & Readiness to Proceed
+
+Repo ka code cleanable hai, foundational tests green hain, par security, data model, aur child privacy ka alignment karna **sabse pehla step** hona chahiye.
+
+> [!IMPORTANT]
+> **AUDIT Complete:** Koi application code change nahi kiya gaya hai. File `AUDIT.md` update kar di gayi hai.
+> Phase 1 (Repo Cleanup: dead files removal, unified env configs, Firebase config cleanup, README rewrite) start karne ke liye aapke "go" ka intezaar hai.

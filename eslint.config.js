@@ -1,10 +1,22 @@
 // https://docs.expo.dev/guides/using-eslint/
-const { defineConfig } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
 
-module.exports = defineConfig([
-  expoConfig,
+module.exports = [
   {
-    ignores: ['dist/*'],
+    ignores: [
+      'dist/*',
+      'node_modules/*',
+      '.expo/*',
+      'school-portal/*',
+      'Backend/*',
+      'packages/*',
+      'coverage/*',
+    ],
   },
-]);
+  ...expoConfig,
+  {
+    rules: {
+      'react/no-unescaped-entities': 'off',
+    },
+  },
+];

@@ -264,14 +264,14 @@ export default function CelebrationOverlay() {
     }, 250);
   };
 
-  if (!activeNotif) return null;
-
   const animatedCardStyle = useAnimatedStyle(() => {
     return {
       opacity: cardOpacity.value,
       transform: [{ scale: cardScale.value }],
     };
   });
+
+  if (!activeNotif) return null;
 
   return (
     <Modal transparent animationType="none" visible={!!activeNotif}>
