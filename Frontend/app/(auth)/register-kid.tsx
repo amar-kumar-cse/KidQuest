@@ -20,6 +20,7 @@ export default function RegisterKidScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [age, setAge] = useState('');
+  const [familyCode, setFamilyCode] = useState('');
   const [avatar, setAvatar] = useState(AVATARS[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -29,6 +30,7 @@ export default function RegisterKidScreen() {
     const trimEmail = email.trim().toLowerCase();
     const trimPass = password.trim();
     const parsedAge = age ? parseInt(age, 10) : undefined;
+    const cleanFamilyCode = familyCode.trim().toUpperCase();
 
     if (!trimName || !trimEmail || !trimPass) {
       setError('Please fill in all required fields.');
@@ -50,8 +52,8 @@ export default function RegisterKidScreen() {
     setLoading(true);
     setError('');
     try {
-      await authService.registerKid(trimEmail, trimPass, trimName, parsedAge);
-      // After registration, go to kid dashboard (will prompt to enter family code)
+      await authService.registerKid(trimEmail, trimPass, trimName, parsedAge, cleanFamilyCode);
+      // After registration, go to kid dashboard
       router.replace('/(kid)/mission-board');
     } catch (err: unknown) {
       setError(authService.getErrorMessage(err));
@@ -153,12 +155,31 @@ export default function RegisterKidScreen() {
               className="bg-white border-2 border-yellow-200 rounded-xl p-4 text-slate-800 text-base"
             />
           </View>
+          <View>
+            <Text className="text-sm font-bold text-yellow-800 mb-1.5">Parent's Family Code (Optional)</Text>
+            <TextInput
+              value={familyCode}
+              onChangeText={(t) => setFamilyCode(t.toUpperCase())}
+              placeholder="e.g. ABC123"
+              placeholderTextColor="#9CA3AF"
+              maxLength={6}
+              autoCapitalize="characters"
+              className="bg-white border-2 border-yellow-200 rounded-xl p-4 text-slate-800 text-base font-bold tracking-widest uppercase"
+            />
+          </View>
+        </View>
+
+        {/* Parental Supervision Notice */}
+        <View className="bg-yellow-100/70 border border-yellow-300 rounded-2xl p-4 mt-6">
+          <Text className="text-xs text-yellow-900 leading-5">
+            🛡️ <Text className="font-bold">Parental Supervision Notice:</Text> Kid accounts require parent supervision under COPPA & privacy guidelines. You can also link your parent later using their invite code.
+          </Text>
         </View>
 
         <TouchableOpacity
           onPress={handleRegister}
           disabled={loading}
-          className={`bg-green-500 border-b-4 border-green-600 py-4 rounded-2xl items-center mt-8 mb-6 ${loading ? 'opacity-60' : ''}`}
+          className={`bg-green-500 border-b-4 border-green-600 py-4 rounded-2xl items-center mt-6 mb-6 ${loading ? 'opacity-60' : ''}`}
         >
           <Text className="text-white font-black text-lg">
             {loading ? 'Creating...' : "LET'S GO! 🚀"}

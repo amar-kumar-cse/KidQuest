@@ -8,16 +8,22 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../lib/firebase';
 import type { AppUser, UserRole } from '../types';
 
 // ─── Auth Service ─────────────────────────────────────────────────────────────
 
 export const authService = {
   /**
-   * Register a new parent account.
+   * Register a new parent account with verified parental consent.
    */
-  async registerParent(email: string, password: string, name: string): Promise<void> {
+  async registerParent(
+    email: string,
+    password: string,
+    name: string,
+    consentGiven: boolean = true
+  ): Promise<void> {
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await setDoc(doc(db, 'Users', user.uid), {
       uid: user.uid,
@@ -25,28 +31,48 @@ export const authService = {
       name: name.trim(),
       role: 'parent' as UserRole,
       linkedKids: [],
+      consentGiven: !!consentGiven,
+      consentTimestamp: serverTimestamp(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
   },
 
   /**
-   * Register a new kid account.
+   * Register a new kid account, optionally linking via parent's family code.
    */
   async registerKid(
     email: string,
     password: string,
     name: string,
     age?: number,
+    familyCode?: string
   ): Promise<void> {
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
+
+    let linkedParentId: string | null = null;
+    if (familyCode && familyCode.trim()) {
+      try {
+        const verifyFn = httpsCallable<{ code: string }, { success: boolean; parentId?: string }>(
+          functions,
+          'verifyFamilyCode'
+        );
+        const res = await verifyFn({ code: familyCode.trim().toUpperCase() });
+        if (res.data?.success && res.data?.parentId) {
+          linkedParentId = res.data.parentId;
+        }
+      } catch (linkErr) {
+        console.warn('[authService] Auto-link with family code failed:', linkErr);
+      }
+    }
+
     await setDoc(doc(db, 'Users', user.uid), {
       uid: user.uid,
       email: email.trim().toLowerCase(),
       name: name.trim(),
       age: age ?? null,
       role: 'kid' as UserRole,
-      linkedParentId: null,
+      linkedParentId,
       totalXp: 0,
       currentStreak: 0,
       bestStreak: 0,
@@ -75,16 +101,33 @@ export const authService = {
 
   /**
    * Delete the current user's account and Firestore profile.
+   * Invokes Cloud Function deleteAccount for complete background cleanup of
+   * tasks, storage proofs, notifications, and ledger entries.
    */
   async deleteAccount(): Promise<void> {
     const user = auth.currentUser;
-    if (user) {
+    if (!user) return;
+
+    // Trigger Cloud Function deletion job for deep server-side purge
+    try {
+      const deleteFn = httpsCallable(functions, 'deleteAccount');
+      await deleteFn();
+    } catch (fnErr) {
+      console.warn('[authService] Cloud Function deleteAccount failed, attempting client cleanup:', fnErr);
       try {
         await deleteDoc(doc(db, 'Users', user.uid));
       } catch (e) {
         console.warn('[authService] Could not delete user document prior to auth deletion:', e);
       }
+    }
+
+    // Delete Firebase Auth User
+    try {
       await deleteUser(user);
+    } catch (delUserErr: any) {
+      if (delUserErr?.code === 'auth/requires-recent-login') {
+        throw new Error('Please log in again before deleting your account.');
+      }
     }
   },
 

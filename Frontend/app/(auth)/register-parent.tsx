@@ -20,6 +20,7 @@ export default function RegisterParentScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [parentConsent, setParentConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -48,11 +49,15 @@ export default function RegisterParentScreen() {
       setError('Passwords do not match.');
       return;
     }
+    if (!parentConsent) {
+      setError('Please verify you are an adult parent/guardian and agree to the parental consent terms.');
+      return;
+    }
 
     setLoading(true);
     setError('');
     try {
-      await authService.registerParent(trimEmail, trimPass, trimName);
+      await authService.registerParent(trimEmail, trimPass, trimName, parentConsent);
       router.replace('/(parent)/dashboard');
     } catch (err: unknown) {
       setError(authService.getErrorMessage(err));
@@ -114,14 +119,35 @@ export default function RegisterParentScreen() {
           ))}
         </View>
 
-        <Text className="text-xs text-slate-400 mt-6 text-center px-4">
-          By registering, you agree to our Terms of Service and Privacy Policy. We collect data solely for family tracking purposes.
-        </Text>
+        {/* Verifiable Parental Consent Checkbox (COPPA / DPDP) */}
+        <TouchableOpacity
+          onPress={() => setParentConsent(!parentConsent)}
+          activeOpacity={0.8}
+          className="flex-row items-start mt-6 p-4 bg-indigo-50/70 rounded-2xl border border-indigo-100"
+        >
+          <View
+            className={`w-6 h-6 rounded-lg mr-3 mt-0.5 items-center justify-center border-2 ${
+              parentConsent ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'
+            }`}
+          >
+            {parentConsent && <Text className="text-white font-black text-xs">✓</Text>}
+          </View>
+          <View className="flex-1">
+            <Text className="text-xs text-slate-700 leading-5">
+              I confirm I am an adult (18+) and legal parent/guardian. I provide verified parental consent for family routine data management in compliance with COPPA and privacy guidelines.
+            </Text>
+            <TouchableOpacity onPress={() => router.push('/privacy' as any)} className="mt-1">
+              <Text className="text-xs font-bold text-indigo-600 underline">
+                View Privacy Policy & Terms of Service ↗
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
 
         <TouchableOpacity
           onPress={handleRegister}
           disabled={loading}
-          className={`bg-indigo-600 py-4 rounded-2xl items-center mt-8 mb-6 ${loading ? 'opacity-60' : ''}`}
+          className={`bg-indigo-600 py-4 rounded-2xl items-center mt-6 mb-6 ${loading ? 'opacity-60' : ''}`}
         >
           <Text className="text-white font-black text-lg">
             {loading ? 'Creating Account...' : 'Create Parent Account 🛡️'}

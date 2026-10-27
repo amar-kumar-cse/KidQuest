@@ -1,6 +1,10 @@
 import { authService } from '../../services/authService';
 
-jest.mock('../../lib/firebase', () => ({ auth: {}, db: {} }));
+jest.mock('../../lib/firebase', () => ({ auth: { currentUser: { uid: 'uid-123' } }, db: {}, functions: {} }));
+
+jest.mock('firebase/functions', () => ({
+  httpsCallable: jest.fn(() => jest.fn().mockResolvedValue({ data: { success: true } })),
+}));
 
 jest.mock('firebase/auth', () => ({
   createUserWithEmailAndPassword: jest.fn().mockResolvedValue({ user: { uid: 'new-uid' } }),
@@ -8,12 +12,14 @@ jest.mock('firebase/auth', () => ({
   signOut: jest.fn().mockResolvedValue(undefined),
   sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
   onAuthStateChanged: jest.fn(() => jest.fn()),
+  deleteUser: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('firebase/firestore', () => ({
   doc: jest.fn(),
   setDoc: jest.fn().mockResolvedValue(undefined),
   getDoc: jest.fn().mockResolvedValue({ exists: () => true, data: () => ({ role: 'parent', name: 'Test' }), id: 'uid-123' }),
+  deleteDoc: jest.fn().mockResolvedValue(undefined),
   serverTimestamp: jest.fn(() => ({})),
 }));
 
@@ -53,6 +59,30 @@ describe('authService', () => {
       const profile = await authService.getUserProfile('uid-123');
       expect(profile).not.toBeNull();
       expect(profile?.uid).toBe('uid-123');
+    });
+  });
+
+  describe('registerParent', () => {
+    it('saves verified parental consent in user document', async () => {
+      const { setDoc } = require('firebase/firestore');
+      await authService.registerParent('parent@test.com', 'pass123', 'Parent User', true);
+      expect(setDoc).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({
+          role: 'parent',
+          consentGiven: true,
+        })
+      );
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('invokes Cloud Function deleteAccount and deletes auth user', async () => {
+      const { deleteUser } = require('firebase/auth');
+      const { httpsCallable } = require('firebase/functions');
+      await authService.deleteAccount();
+      expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'deleteAccount');
+      expect(deleteUser).toHaveBeenCalled();
     });
   });
 });

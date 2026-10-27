@@ -1,12 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { authService } from '../services/authService';
 import { useAppStore } from '../store/useAppStore';
+import { ParentalGateModal } from '../components/parent/ParentalGateModal';
 
 export default function PrivacyPolicyScreen() {
   const router = useRouter();
   const { clearStore } = useAppStore();
+  const [gateVisible, setGateVisible] = useState(false);
+
+  const executeDelete = async () => {
+    try {
+      await authService.deleteAccount();
+      clearStore();
+      router.replace('/(auth)/login');
+    } catch (err: any) {
+      Alert.alert('Error', authService.getErrorMessage(err));
+    }
+  };
 
   const handleDeleteAccount = () => {
     Alert.alert(
@@ -15,18 +27,10 @@ export default function PrivacyPolicyScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete Permanently',
+          text: 'Verify Parent & Delete',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await authService.deleteAccount();
-              clearStore();
-              router.replace('/(auth)/login');
-            } catch (err: any) {
-              Alert.alert('Error', authService.getErrorMessage(err));
-            }
-          }
-        }
+          onPress: () => setGateVisible(true),
+        },
       ]
     );
   };
@@ -42,24 +46,29 @@ export default function PrivacyPolicyScreen() {
         </View>
 
         <View className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm mb-6">
-          <Text className="text-lg font-bold text-slate-800 mb-2">1. Information Collection</Text>
+          <Text className="text-lg font-bold text-slate-800 mb-2">1. Children's Privacy (COPPA & DPDP Act)</Text>
           <Text className="text-slate-500 mb-4 leading-6">
-            KidQuest collects minimal personal data required for account functionality (such as name and email). We comply with COPPA (Children's Online Privacy Protection Act) by requiring verified parental consent before a child account can be linked to the platform.
+            KidQuest complies with the Children's Online Privacy Protection Act (COPPA) and India's Digital Personal Data Protection Act (DPDP Act 2023). We never collect personally identifiable information from children without verified adult parental consent. Parents retain full visibility and authority over child profiles at all times.
           </Text>
 
-          <Text className="text-lg font-bold text-slate-800 mb-2">2. Data Usage</Text>
+          <Text className="text-lg font-bold text-slate-800 mb-2">2. Zero Third-Party Advertising & Tracking</Text>
           <Text className="text-slate-500 mb-4 leading-6">
-            The data collected is used strictly to provide the core functionality of the KidQuest app (XP tracking, task management, and family coordination). We do NOT sell, rent, or trade your personal information to third parties under any circumstances.
+            KidQuest contains ZERO third-party behavioral advertising, zero marketing trackers, and zero analytics sharing with external data brokers. We do not monetize children's data or attention.
           </Text>
 
-          <Text className="text-lg font-bold text-slate-800 mb-2">3. Data Retention & Deletion</Text>
+          <Text className="text-lg font-bold text-slate-800 mb-2">3. Storage & Photo Privacy</Text>
           <Text className="text-slate-500 mb-4 leading-6">
-            Users have the absolute right to delete their accounts at any time. When an account is deleted, all associated data, including task history, pending rewards, and uploaded proof images, are permanently erased from our active servers.
+            Photos uploaded as quest completion proof are strictly stored in authenticated, private cloud storage. Photos can only be accessed by the assigned child and their verified linked parent. Photos are never public, indexed, or shared.
           </Text>
 
-          <Text className="text-lg font-bold text-slate-800 mb-2">4. Parental Rights</Text>
+          <Text className="text-lg font-bold text-slate-800 mb-2">4. Parental Rights & Data Deletion</Text>
+          <Text className="text-slate-500 mb-4 leading-6">
+            Parents have the right to review, update, export, or permanently delete any data associated with their family or children. You may initiate self-service deletion at any time from Settings or using the button below.
+          </Text>
+
+          <Text className="text-lg font-bold text-slate-800 mb-2">5. Data Retention Policy</Text>
           <Text className="text-slate-500 leading-6">
-            Parents maintain full control over their children's accounts. A parent can unlink or delete a child's account at any point via the parent dashboard settings.
+            Upon account deletion, all user profile records, tasks, proof images, XP transaction ledgers, and notification histories are queued and permanently purged from active production databases.
           </Text>
         </View>
 
@@ -70,13 +79,25 @@ export default function PrivacyPolicyScreen() {
             Deleting your account will erase everything. Ensure you have backed up any necessary information before proceeding.
           </Text>
           <TouchableOpacity 
-            className="bg-red-500 px-6 py-3 rounded-xl w-full items-center shadow-md"
+            className="bg-red-500 px-6 py-3 rounded-xl w-full items-center shadow-md active:bg-red-600"
             onPress={handleDeleteAccount}
           >
             <Text className="text-white font-black">Permanently Delete Account</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Parental Gate Modal for deletion */}
+      <ParentalGateModal
+        visible={gateVisible}
+        title="Parent Verification 🛡️"
+        reason="Please verify you are an adult before permanently deleting your account data."
+        onSuccess={() => {
+          setGateVisible(false);
+          executeDelete();
+        }}
+        onCancel={() => setGateVisible(false)}
+      />
     </SafeAreaView>
   );
 }
