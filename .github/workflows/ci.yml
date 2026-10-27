@@ -136,18 +136,26 @@ jobs:
 
       - name: Format & Comment PR Coverage
         uses: actions/github-script@v7
+        env:
+          FRONTEND_RES: ${{ needs.frontend-checks.result }}
+          BACKEND_RES: ${{ needs.backend-checks.result }}
+          PORTAL_RES: ${{ needs.school-portal-checks.result }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const path = './coverage/coverage-summary.json';
 
+            const frontendStatus = process.env.FRONTEND_RES === 'success' ? '✅ Passed' : '❌ Failed';
+            const backendStatus = process.env.BACKEND_RES === 'success' ? '✅ Passed' : '❌ Failed';
+            const portalStatus = process.env.PORTAL_RES === 'success' ? '✅ Passed' : '❌ Failed';
+
             let commentBody = '### 🎯 KidQuest CI Status\n\n';
             commentBody += '| Area | Status |\n';
             commentBody += '|---|---|\n';
-            commentBody += `| **Frontend Checks** | ${{ needs.frontend-checks.result == 'success' ? '✅ Passed' : '❌ Failed' }} |\n`;
-            commentBody += `| **Backend & Rules** | ${{ needs.backend-checks.result == 'success' ? '✅ Passed' : '❌ Failed' }} |\n`;
-            commentBody += `| **School Portal** | ${{ needs.school-portal-checks.result == 'success' ? '✅ Passed' : '❌ Failed' }} |\n\n`;
+            commentBody += `| **Frontend Checks** | ${frontendStatus} |\n`;
+            commentBody += `| **Backend & Rules** | ${backendStatus} |\n`;
+            commentBody += `| **School Portal** | ${portalStatus} |\n\n`;
 
             if (fs.existsSync(path)) {
               try {
