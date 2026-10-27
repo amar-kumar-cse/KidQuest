@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nowicstudio.kidquest",
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "KidQuest needs camera access to take task proof photos.",
         "NSPhotoLibraryUsageDescription": "KidQuest needs photo library access to upload task proof."
@@ -18,11 +19,13 @@
     },
     "android": {
       "package": "com.nowicstudio.kidquest",
+      "versionCode": 1,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png"
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
