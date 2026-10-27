@@ -1,30 +1,22 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import axios from 'axios';
 
 /**
- * Reject a task — resets it to 'pending' so the kid can resubmit.
- * Stores parent's rejection reason as parentNote.
- *
- * Security:
- *  - Caller must be authenticated
- *  - Caller must be the parent who owns the task
- *  - Caller and task must share the same familyId
- *  - Task must be in 'pending_approval' status
- *
- * Side effects:
- *  - Sends Expo push notification to the kid (best-effort)
- *  - Creates an in-app Notification document for the kid
+ * rejectTask callable function (Phase 4)
+ * - Verifies caller is authorized parent
+ * - Resets task to 'pending' so child can redo it, or marks 'rejected'
+ * - Cleans up submission proof
+ * - Creates an explanatory in-app notification for the child
  */
 export const rejectTask = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be logged in.');
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated to reject tasks.');
   }
 
-  const { taskId, parentNote = '' } = data as { taskId: string; parentNote?: string };
+  const { taskId, reason } = data as { taskId?: string; reason?: string };
 
   if (!taskId || typeof taskId !== 'string') {
-    throw new functions.https.HttpsError('invalid-argument', 'taskId is required.');
+    throw new functions.https.HttpsError('invalid-argument', 'Valid taskId is required.');
   }
 
   const db = admin.firestore();
@@ -32,10 +24,7 @@ export const rejectTask = functions.https.onCall(async (data, context) => {
   const callerRef = db.collection('Users').doc(callerUid);
   const taskRef = db.collection('Tasks').doc(taskId);
 
-  const [callerSnap, taskSnap] = await Promise.all([
-    callerRef.get(),
-    taskRef.get(),
-  ]);
+  const [callerSnap, taskSnap] = await Promise.all([callerRef.get(), taskRef.get()]);
 
   if (!callerSnap.exists) {
     throw new functions.https.HttpsError('not-found', 'Caller profile not found.');
@@ -44,79 +33,59 @@ export const rejectTask = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('not-found', 'Task not found.');
   }
 
-  const caller = callerSnap.data()!;
-  const task = taskSnap.data()!;
+  const caller = callerSnap.data() || {};
+  const task = taskSnap.data() || {};
+  const isAdmin = caller.role === 'admin' || context.auth.token.admin === true;
 
-  // Caller must be a parent
-  if (caller.role !== 'parent') {
+  if (caller.role !== 'parent' && !isAdmin) {
     throw new functions.https.HttpsError('permission-denied', 'Only parents can reject tasks.');
   }
 
-  // Task must belong to this parent
-  if (task.parentId !== callerUid) {
-    throw new functions.https.HttpsError('permission-denied', 'Not the task owner.');
-  }
+  // Authorization check (support parentId direct ownership and linkedKids)
+  const isAuthorized =
+    task.parentId === callerUid ||
+    (Array.isArray(caller.linkedKids) && caller.linkedKids.includes(task.assignedToUid)) ||
+    (caller.familyId && task.familyId && caller.familyId === task.familyId) ||
+    isAdmin;
 
-  // Family check — caller and task must share familyId
-  if (!caller.familyId || caller.familyId !== task.familyId) {
+  if (!isAuthorized) {
     throw new functions.https.HttpsError('permission-denied', 'Task does not belong to your family.');
   }
 
-  // Task must be awaiting approval
-  if (task.status !== 'pending_approval') {
-    throw new functions.https.HttpsError(
-      'failed-precondition',
-      `Task status is "${task.status}", expected "pending_approval".`,
-    );
+  // Idempotency check: if already pending or rejected
+  if (task.status === 'pending' && !task.proofUrl) {
+    return { success: true, alreadyProcessed: true };
   }
 
   const now = admin.firestore.Timestamp.now();
+  const kidUid = task.assignedToUid;
+  const rejectionReason = reason || 'Please review instructions and try again!';
 
-  // Reset task so kid can try again
+  // Reset task status so kid can submit new proof
   await taskRef.update({
     status: 'pending',
     proofUrl: admin.firestore.FieldValue.delete(),
     proofNote: admin.firestore.FieldValue.delete(),
     completedAt: admin.firestore.FieldValue.delete(),
-    bonusXp: 0,
-    parentNote: parentNote || null,
+    rejectedAt: now,
+    rejectedBy: callerUid,
+    rejectionReason,
     updatedAt: now,
   });
 
-  // Create in-app notification for the kid
-  const kidUid = task.assignedToUid as string;
+  // Create friendly feedback notification for kid
   if (kidUid) {
     const notifRef = db.collection('Notifications').doc();
     await notifRef.set({
       recipientId: kidUid,
       type: 'task_rejected',
       taskId,
-      title: 'Task Returned',
-      body: `"${task.title || 'A task'}" needs another try.${parentNote ? ` Note: ${parentNote}` : ''}`,
+      title: '🔄 Task Needs Another Try',
+      body: `"${task.title}" needs a quick fix: ${rejectionReason}`,
       createdAt: now,
       isRead: false,
-      by: callerUid,
-      familyId: caller.familyId,
     });
-
-    // Send Expo push notification to kid (best-effort)
-    try {
-      const kidSnap = await db.collection('Users').doc(kidUid).get();
-      const kidData = kidSnap.exists ? kidSnap.data() : null;
-      const pushToken = kidData?.expoPushToken;
-      if (pushToken && typeof pushToken === 'string') {
-        await axios.post('https://exp.host/--/api/v2/push/send', {
-          to: pushToken,
-          sound: 'default',
-          title: '🔄 Quest Returned',
-          body: `"${task.title}" needs another try. ${parentNote ? parentNote : 'Check the details!'}`,
-          data: { type: 'task_rejected', taskId },
-        }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-      }
-    } catch (err: any) {
-      console.warn('[rejectTask] Push notification failed:', err?.toString?.() || err);
-    }
   }
 
-  return { success: true };
+  return { success: true, taskId, status: 'pending' };
 });
