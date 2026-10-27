@@ -3,7 +3,7 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // =====================================================================
-    // HELPER FUNCTIONS
+    // HELPER FUNCTIONS & VALIDATORS
     // =====================================================================
 
     function isSignedIn() {
@@ -15,42 +15,69 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.get('admin', false) == true;
+      return isSignedIn() && (
+        request.auth.token.get('admin', false) == true ||
+        request.auth.token.get('role', '') == 'admin'
+      );
     }
 
-    // Maximum 5 MB, image MIME type only
-    function isValidPhoto() {
-      return request.resource.size <= 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+    // Maximum file size & image MIME validation
+    function isValidPhoto(maxBytes) {
+      return request.resource != null
+        && request.resource.size <= maxBytes
+        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+    }
+
+    // Task document lookup in Firestore (PascalCase primary, lowercase fallback)
+    function hasTask(taskId) {
+      return firestore.exists(/databases/(default)/documents/Tasks/$(taskId)) ||
+             firestore.exists(/databases/(default)/documents/tasks/$(taskId));
+    }
+
+    function getTaskData(taskId) {
+      return firestore.exists(/databases/(default)/documents/Tasks/$(taskId))
+        ? firestore.get(/databases/(default)/documents/Tasks/$(taskId)).data
+        : firestore.get(/databases/(default)/documents/tasks/$(taskId)).data;
+    }
+
+    function isTaskParty(taskId) {
+      return isSignedIn() && hasTask(taskId) && (
+        request.auth.uid == getTaskData(taskId).get('assignedToUid', '') ||
+        request.auth.uid == getTaskData(taskId).get('userId', '') ||
+        request.auth.uid == getTaskData(taskId).get('parentId', '')
+      );
     }
 
     // =====================================================================
-    // PROFILE PHOTOS: profile-photos/{userId}/{fileName}
-    // Users can only upload to their own directory.
+    // 1. PROFILE PHOTOS: profile-photos/{userId}/{fileName}
+    // Readable by self, linked parent, or admin. NO PUBLIC READ.
+    // Max 5 MB, image MIME type only.
     // =====================================================================
     match /profile-photos/{userId}/{fileName} {
-      allow read: if isSignedIn();
-      allow write: if (isUser(userId) || isAdmin()) && isValidPhoto();
+      allow read: if isSignedIn() && (
+        isUser(userId) ||
+        (firestore.exists(/databases/(default)/documents/Users/$(request.auth.uid)) &&
+         userId in firestore.get(/databases/(default)/documents/Users/$(request.auth.uid)).data.get('linkedKids', [])) ||
+        isAdmin()
+      );
+      allow write: if (isUser(userId) || isAdmin()) && isValidPhoto(5 * 1024 * 1024);
       allow delete: if isUser(userId) || isAdmin();
     }
 
     // =====================================================================
-    // TASK PHOTOS: task-photos/{taskId}/{fileName}
-    // Only the task owner (userId stored in Firestore tasks/{taskId}) can write.
+    // 2. TASK PROOF PHOTOS: task-photos/{taskId}/{fileName}
+    // Child upload proof of chore/homework.
+    // Strictly restricted to assigned child and parent. COPPA/DPDP compliant.
+    // Max 10 MB, image MIME type only.
     // =====================================================================
     match /task-photos/{taskId}/{fileName} {
-      // Lookup the task owner in Firestore
-      function isTaskOwner() {
-        return request.auth.uid == firestore.get(/databases/(default)/documents/tasks/$(taskId)).data.userId;
-      }
-
-      allow read: if isSignedIn();
-      allow write: if (isSignedIn() && isTaskOwner() && isValidPhoto()) || isAdmin();
-      allow delete: if (isSignedIn() && isTaskOwner()) || isAdmin();
+      allow read: if isTaskParty(taskId) || isAdmin();
+      allow write: if (isTaskParty(taskId) || isAdmin()) && isValidPhoto(10 * 1024 * 1024);
+      allow delete: if isTaskParty(taskId) || isAdmin();
     }
 
     // =====================================================================
-    // DEFAULT DENY
+    // DEFAULT DENY FOR ALL OTHER PATHS
     // =====================================================================
     match /{allPaths=**} {
       allow read, write: if false;

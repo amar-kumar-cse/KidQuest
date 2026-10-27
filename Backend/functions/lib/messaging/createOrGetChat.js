@@ -50,7 +50,7 @@ exports.createOrGetChat = functions
     const db = admin.firestore();
     const rtdb = admin.database();
     // 1. Authorization: caller must be either the parent, the teacher, or an admin
-    const callerDoc = await db.collection('users').doc(callerUid).get();
+    const callerDoc = await db.collection('Users').doc(callerUid).get();
     const callerData = callerDoc.data() || {};
     const isAdmin = callerData.role === 'admin';
     if (callerUid !== parentId && callerUid !== teacherId && !isAdmin) {
@@ -58,9 +58,9 @@ exports.createOrGetChat = functions
     }
     // 2. Fetch profiles from Firestore to verify roles & names
     const [parentSnap, teacherSnap, studentSnap] = await Promise.all([
-        db.collection('users').doc(parentId).get(),
-        db.collection('users').doc(teacherId).get(),
-        db.collection('users').doc(studentId).get(),
+        db.collection('Users').doc(parentId).get(),
+        db.collection('Users').doc(teacherId).get(),
+        db.collection('Users').doc(studentId).get(),
     ]);
     if (!parentSnap.exists || !teacherSnap.exists) {
         throw new functions.https.HttpsError('not-found', 'Parent or Teacher profile not found.');

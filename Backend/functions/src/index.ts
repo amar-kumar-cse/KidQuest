@@ -36,6 +36,7 @@ export { onUserDeleted } from './users/onUserDeleted';
 export { deleteAccount } from './users/deleteAccount';
 export { processDeletionJob } from './users/processDeletionJob';
 export { generateKidCustomToken } from './users/generateKidCustomToken';
+export { syncUserCustomClaims, setUserRole } from './users/syncUserCustomClaims';
 
 // Export Weekly Progress Report functions
 export { weeklyProgressReportCron } from './reports/weeklyReportJob';

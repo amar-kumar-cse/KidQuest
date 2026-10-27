@@ -23,7 +23,7 @@ export const sendTestReport = functions
 
     // Permissions check: caller must be target user or admin
     if (targetUserId !== callerUid) {
-      const callerDoc = await db.collection('users').doc(callerUid).get();
+      const callerDoc = await db.collection('Users').doc(callerUid).get();
       const callerData = callerDoc.data() || {};
       if (callerData.role !== 'admin') {
         throw new functions.https.HttpsError(

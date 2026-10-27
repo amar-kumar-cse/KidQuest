@@ -68,7 +68,7 @@ export const onMessageCreated = functions
 
     // 4. Send push notification to recipient via Expo Push API
     try {
-      const recipientDoc = await db.collection('users').doc(recipientId).get();
+      const recipientDoc = await db.collection('Users').doc(recipientId).get();
       const recipientData = recipientDoc.data() || {};
       const pushToken = recipientData.pushToken || recipientData.expoPushToken;
 
