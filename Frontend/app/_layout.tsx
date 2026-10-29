@@ -15,6 +15,8 @@ import { useAppStore } from '../store/useAppStore';
 import { upsertUserProfile } from '../services/api';
 import GlobalLoadingOverlay from '../components/GlobalLoadingOverlay';
 import OfflineBanner from '../components/OfflineBanner';
+import CelebrationOverlay from '../components/CelebrationOverlay';
+import { NotificationPermissionModal } from '../components/NotificationPermissionModal';
 import { scheduleDailyReminder } from '../lib/notificationService';
 import { useNotifications } from '../hooks/useNotifications';
 import { initDatabase } from '../lib/db';
@@ -199,6 +201,8 @@ function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <OfflineBanner />
+        <CelebrationOverlay />
+        <NotificationPermissionModal />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" />

@@ -97,6 +97,21 @@ export async function notifyParentTaskCompleted(kidName: string, taskTitle: stri
 }
 
 /**
+ * Send a notification to parent requesting quest approval
+ */
+export async function notifyParentApprovalRequest(kidName: string, taskTitle: string, xp: number) {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '🛡️ Approval Request',
+      body: `${kidName} submitted proof for "${taskTitle}" (+${xp} XP). Review to approve!`,
+      data: { type: 'approval_request' },
+      sound: 'default',
+    },
+    trigger: null,
+  });
+}
+
+/**
  * Send a local notification to the kid when their task is approved
  */
 export async function notifyKidTaskApproved(taskTitle: string, xp: number) {
@@ -104,7 +119,7 @@ export async function notifyKidTaskApproved(taskTitle: string, xp: number) {
     content: {
       title: '🎉 Quest Approved!',
       body: `"${taskTitle}" was approved! You earned +${xp} XP!`,
-      data: { type: 'task_approved' },
+      data: { type: 'task_approved', xpAwarded: xp },
       sound: 'default',
     },
     trigger: null,
@@ -130,7 +145,6 @@ export async function notifyKidTaskRejected(taskTitle: string) {
  * Schedule a daily reminder for the kid to complete their quests
  */
 export async function scheduleDailyReminder(hour: number = 16, minute: number = 0) {
-  // Cancel existing daily reminders
   await cancelDailyReminder();
 
   await Notifications.scheduleNotificationAsync({
@@ -142,10 +156,10 @@ export async function scheduleDailyReminder(hour: number = 16, minute: number = 
       sound: 'default',
     },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      type: Notifications.SchedulableTriggerInputTypes?.DAILY ?? 'daily',
       hour,
       minute,
-    },
+    } as any,
   });
 }
 
@@ -154,6 +168,37 @@ export async function scheduleDailyReminder(hour: number = 16, minute: number = 
  */
 export async function cancelDailyReminder() {
   await Notifications.cancelScheduledNotificationAsync('daily-quest-reminder');
+}
+
+/**
+ * Schedule evening Streak-at-Risk alert if today's quest has not been completed
+ */
+export async function scheduleStreakAtRiskReminder(currentStreak: number, hour: number = 19, minute: number = 30) {
+  await cancelStreakAtRiskReminder();
+
+  if (currentStreak <= 0) return;
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: 'streak-at-risk-reminder',
+    content: {
+      title: '🔥 Streak At Risk!',
+      body: `Your ${currentStreak}-day streak is on the line! Finish your quest tonight to keep it burning!`,
+      data: { type: 'streak_at_risk', streak: currentStreak },
+      sound: 'default',
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes?.DAILY ?? 'daily',
+      hour,
+      minute,
+    } as any,
+  });
+}
+
+/**
+ * Cancel the streak at risk reminder
+ */
+export async function cancelStreakAtRiskReminder() {
+  await Notifications.cancelScheduledNotificationAsync('streak-at-risk-reminder');
 }
 
 /**
