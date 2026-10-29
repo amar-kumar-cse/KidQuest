@@ -12,7 +12,8 @@
     "test": "jest --watchAll=false",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
-    "format": "prettier --write \"**/*.{ts,tsx,js,json}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,json}\"",
+    "bundle:check": "expo export --no-bytecode --output-dir dist-check"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

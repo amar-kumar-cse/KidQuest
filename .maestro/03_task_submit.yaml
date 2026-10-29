@@ -1,0 +1,23 @@
+appId: com.nowicstudio.kidquest
+---
+# Flow 3: Kid Completes Quest & Submits Proof
+- launchApp
+
+# Step 1: Kid opens Mission Board
+- assertVisible: "Active Quests"
+- assertVisible: "Complete Math Practice Sheet"
+
+# Step 2: Open Quest Card & Modal
+- tapOn: "Complete Math Practice Sheet"
+- assertVisible: "Submit Proof"
+
+# Step 3: Choose Quick Submit or Take Photo
+- tapOn: "Quick Submit (No Photo)"
+
+# Step 4: Verify Quest moves to Waiting for Review
+- extendedWaitUntil:
+    visible: "Waiting for Review"
+    timeout: 8000
+
+- assertVisible: "Waiting for Review"
+- assertVisible: "Complete Math Practice Sheet"

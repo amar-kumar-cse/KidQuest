@@ -1,0 +1,9 @@
+appId: com.nowicstudio.kidquest
+---
+# KidQuest Master E2E Suite
+# Runs all critical flows: Login -> Create -> Submit -> Approve -> Offline Sync
+- runFlow: 01_login.yaml
+- runFlow: 02_task_create.yaml
+- runFlow: 03_task_submit.yaml
+- runFlow: 04_task_approve.yaml
+- runFlow: 05_offline_sync.yaml

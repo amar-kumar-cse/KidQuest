@@ -1,0 +1,32 @@
+appId: com.nowicstudio.kidquest
+---
+# Flow 5: Offline-First Queue & Reconnect Sync
+- launchApp
+
+# Step 1: Simulate Network Loss (Airplane Mode)
+- setAirplaneMode: true
+
+# Step 2: Verify Top Offline Banner Appears
+- extendedWaitUntil:
+    visible: "Offline Mode"
+    timeout: 5000
+
+- assertVisible: "Offline Mode"
+
+# Step 3: Kid Completes Quest Offline
+- tapOn: "Make Your Bed"
+- tapOn: "Quick Submit (No Photo)"
+
+# Step 4: Verify Local Optimistic Update
+- assertVisible: "Waiting for Review"
+- assertVisible: "Offline Mode"
+
+# Step 5: Restore Network Connection
+- setAirplaneMode: false
+
+# Step 6: Verify Auto-Sync Queue Flushes & Banner Dismisses
+- extendedWaitUntil:
+    notVisible: "Offline Mode"
+    timeout: 12000
+
+- assertVisible: "KidQuest"

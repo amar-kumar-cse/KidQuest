@@ -1,0 +1,4 @@
+appId: com.nowicstudio.kidquest
+---
+# KidQuest Maestro E2E Configuration
+# Run flows with: maestro test .maestro/run_all.yaml

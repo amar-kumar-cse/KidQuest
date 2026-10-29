@@ -22,12 +22,11 @@ import { useNotifications } from '../hooks/useNotifications';
 import { initDatabase } from '../lib/db';
 import { syncQueueService } from '../lib/syncQueueService';
 import { queryClient } from '../lib/queryClient';
+import { initObservability, setObservabilityUser } from '../lib/observability';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import * as Sentry from '@sentry/react-native';
 
-Sentry.init({
-  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || 'YOUR_SENTRY_DSN_HERE',
-  debug: false,
-});
+initObservability();
 
 /**
  * Root Layout with Firebase Auth Guard + TanStack Query + Offline-first SQLite.
@@ -91,14 +90,15 @@ function RootLayout() {
         setUser(firebaseUser);
 
         // Fetch role and profile from Firestore
+        let resolvedRole: 'parent' | 'kid' = 'parent';
         try {
           const userSnap = await getDoc(doc(db, 'Users', firebaseUser.uid));
           if (userSnap.exists()) {
             const data = userSnap.data();
-            const role = data.role as 'parent' | 'kid';
-            setRole(role);
+            resolvedRole = (data.role as 'parent' | 'kid') || 'parent';
+            setRole(resolvedRole);
             
-            if (role === 'kid') {
+            if (resolvedRole === 'kid') {
               setKidProfile({
                 uid: firebaseUser.uid,
                 name: data.name || 'Kid',
@@ -138,6 +138,13 @@ function RootLayout() {
             });
           }
 
+          // Track observability user (COPPA safe)
+          setObservabilityUser({
+            uid: firebaseUser.uid,
+            role: resolvedRole,
+            email: resolvedRole === 'parent' ? firebaseUser.email || undefined : undefined,
+          });
+
           // Schedule daily reminder for kids
           const isKid = (await getDoc(doc(db, 'Users', firebaseUser.uid))).data()?.role === 'kid';
           if (isKid) {
@@ -150,6 +157,7 @@ function RootLayout() {
         }
       } else {
         clearStore();
+        setObservabilityUser(null);
       }
       setAuthLoading(false);
     });
@@ -198,21 +206,23 @@ function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <OfflineBanner />
-        <CelebrationOverlay />
-        <NotificationPermissionModal />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(kid)" />
-          <Stack.Screen name="(parent)" />
-        </Stack>
-        <StatusBar style="auto" />
-        <GlobalLoadingOverlay />
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <OfflineBanner />
+          <CelebrationOverlay />
+          <NotificationPermissionModal />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(kid)" />
+            <Stack.Screen name="(parent)" />
+          </Stack>
+          <StatusBar style="auto" />
+          <GlobalLoadingOverlay />
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

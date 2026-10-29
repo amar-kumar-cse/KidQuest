@@ -1,0 +1,31 @@
+appId: com.nowicstudio.kidquest
+---
+# Flow 4: Parent Approves Quest and Kid Receives Celebration
+- launchApp
+
+# Step 1: Parent Dashboard shows pending quest
+- assertVisible: "Pending Approval"
+- assertVisible: "Complete Math Practice Sheet"
+
+# Step 2: Parent taps Approve button
+- tapOn:
+    text: "✓"
+    index: 0
+
+# Step 3: Confirm in Alert Dialog
+- assertVisible: "Approve Task"
+- tapOn: "Approve ✓"
+
+# Step 4: Verify pending item is removed
+- extendedWaitUntil:
+    notVisible: "Complete Math Practice Sheet"
+    timeout: 8000
+
+# Step 5: Switch to Kid account and verify Celebratory Overlay
+- tapOn: "Mission Board"
+- extendedWaitUntil:
+    visible: "QUEST APPROVED! 🎉"
+    timeout: 10000
+
+- assertVisible: "QUEST APPROVED! 🎉"
+- tapOn: "Claim Rewards"

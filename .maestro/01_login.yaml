@@ -1,0 +1,28 @@
+appId: com.nowicstudio.kidquest
+---
+# Flow 1: User Login (Parent & Kid Role Navigation)
+- launchApp:
+    clearState: true
+
+- assertVisible: "KidQuest"
+
+# Step 1: Verify Login Screen Fields
+- assertVisible: "Sign In"
+- assertVisible: "Email"
+- assertVisible: "Password"
+
+# Step 2: Parent Login
+- tapOn: "Email"
+- inputText: "parent@kidquest.app"
+- tapOn: "Password"
+- inputText: "SecurePass123!"
+- hideKeyboard
+- tapOn: "Sign In"
+
+# Step 3: Assert Parent Lands on Dashboard
+- extendedWaitUntil:
+    visible: "Pending Approval"
+    timeout: 10000
+
+- assertVisible: "KidQuest"
+- assertVisible: "Manage Rewards"

@@ -1,0 +1,33 @@
+appId: com.nowicstudio.kidquest
+---
+# Flow 2: Parent Creates a Quest
+- launchApp
+
+- assertVisible: "KidQuest"
+
+# Step 1: Tap Create Task button
+- tapOn: "+ Create Task"
+
+# Step 2: Fill in Quest Details
+- assertVisible: "Create New Quest"
+- tapOn: "Quest Title"
+- inputText: "Complete Math Practice Sheet"
+- hideKeyboard
+
+- tapOn: "Description"
+- inputText: "Finish chapter 4 problems and upload clean photo proof"
+- hideKeyboard
+
+# Step 3: Select Category & XP Reward
+- tapOn: "Homework"
+- tapOn: "Medium"
+
+# Step 4: Submit Creation
+- tapOn: "Create Quest"
+
+# Step 5: Verify Quest in Dashboard
+- extendedWaitUntil:
+    visible: "Complete Math Practice Sheet"
+    timeout: 8000
+
+- assertVisible: "Complete Math Practice Sheet"

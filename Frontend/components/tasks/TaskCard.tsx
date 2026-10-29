@@ -22,7 +22,7 @@ const DIFFICULTY_CONFIG = {
   hard: { label: 'Hard', color: 'text-red-500' },
 };
 
-export function TaskCard({ task, onPress, showKidName = false }: TaskCardProps) {
+function TaskCardComponent({ task, onPress, showKidName = false }: TaskCardProps) {
   const catDef = getCategoryDef(task.category);
   const status = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.pending;
   const difficulty = DIFFICULTY_CONFIG[task.difficulty] ?? DIFFICULTY_CONFIG.easy;
@@ -106,3 +106,5 @@ export function TaskCard({ task, onPress, showKidName = false }: TaskCardProps) 
     </TouchableOpacity>
   );
 }
+
+export const TaskCard = React.memo(TaskCardComponent);

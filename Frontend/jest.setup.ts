@@ -52,6 +52,15 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
 
+// ─── 4b. Mock @sentry/react-native ──────────────────────────────────────────
+jest.mock('@sentry/react-native', () => ({
+  init: jest.fn(),
+  wrap: (comp: any) => comp,
+  setUser: jest.fn(),
+  captureException: jest.fn(),
+  addBreadcrumb: jest.fn(),
+}));
+
 // ─── 5. Mock AsyncStorage ─────────────────────────────────────────────────────
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')

@@ -12,7 +12,7 @@ interface MissionCardProps {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export default function MissionCard({ title, type, isRequired = true, progress = 0.5, onPress }: MissionCardProps) {
+function MissionCard({ title, type, isRequired = true, progress = 0.5, onPress }: MissionCardProps) {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -197,3 +197,5 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   }
 });
+
+export default React.memo(MissionCard);
