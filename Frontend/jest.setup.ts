@@ -124,8 +124,15 @@ jest.mock('firebase/functions', () => ({
 jest.mock('firebase/storage', () => ({
   getStorage: jest.fn(() => ({})),
   ref: jest.fn(),
+  uploadBytesResumable: jest.fn(() => ({
+    on: jest.fn((event, progress, error, complete) => {
+      complete();
+    }),
+    snapshot: { ref: {} },
+  })),
   uploadBytes: jest.fn().mockResolvedValue({}),
   getDownloadURL: jest.fn().mockResolvedValue('https://storage.googleapis.com/test-photo.jpg'),
+  deleteObject: jest.fn().mockResolvedValue(undefined),
 }));
 
 // Mock app's internal Firebase module
@@ -138,3 +145,41 @@ jest.mock('./lib/firebase', () => ({
   storage: {},
   functions: {},
 }));
+
+// ─── 7. Mock NetInfo ──────────────────────────────────────────────────────────
+jest.mock('@react-native-community/netinfo', () => ({
+  fetch: jest.fn().mockResolvedValue({
+    isConnected: true,
+    isInternetReachable: true,
+    type: 'wifi',
+  }),
+  addEventListener: jest.fn(() => jest.fn()),
+}));
+
+// ─── 8. Mock expo-image-manipulator ───────────────────────────────────────────
+jest.mock('expo-image-manipulator', () => ({
+  manipulateAsync: jest.fn().mockResolvedValue({
+    uri: 'file://mock-optimized-photo.jpg',
+    width: 1200,
+    height: 900,
+  }),
+  SaveFormat: {
+    JPEG: 'jpeg',
+    PNG: 'png',
+    WEBP: 'webp',
+  },
+}));
+
+// ─── 9. Mock expo-sqlite ──────────────────────────────────────────────────────
+const mockSqliteDb = {
+  execSync: jest.fn(),
+  runSync: jest.fn(),
+  getAllSync: jest.fn(() => []),
+  getFirstSync: jest.fn(() => null),
+};
+
+jest.mock('expo-sqlite', () => ({
+  openDatabaseSync: jest.fn(() => mockSqliteDb),
+}));
+
+export { mockSqliteDb };

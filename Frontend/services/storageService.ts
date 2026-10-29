@@ -1,5 +1,6 @@
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '../lib/firebase';
+import { optimizeImageForUpload } from './imageOptimizer';
 
 // ─── Storage Service ──────────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ export interface UploadProgress {
 export const storageService = {
   /**
    * Upload a task proof photo to Firebase Storage.
+   * Compresses & resizes photo before uploading to save bandwidth and storage.
    * Path: proofs/{taskId}/{timestamp}.jpg
    * Returns the public download URL.
    */
@@ -20,7 +22,8 @@ export const storageService = {
     taskId: string,
     onProgress?: (progress: UploadProgress) => void,
   ): Promise<string> {
-    const response = await fetch(localUri);
+    const optimized = await optimizeImageForUpload(localUri, { maxWidth: 1200, quality: 0.75 });
+    const response = await fetch(optimized.uri);
     const blob = await response.blob();
     const timestamp = Date.now();
     const storageRef = ref(storage, `proofs/${taskId}/${timestamp}.jpg`);
@@ -63,7 +66,8 @@ export const storageService = {
     userId: string,
     onProgress?: (progress: UploadProgress) => void,
   ): Promise<string> {
-    const response = await fetch(localUri);
+    const optimized = await optimizeImageForUpload(localUri, { maxWidth: 512, quality: 0.8 });
+    const response = await fetch(optimized.uri);
     const blob = await response.blob();
     const timestamp = Date.now();
     const storageRef = ref(storage, `avatars/${userId}/${timestamp}.jpg`);
