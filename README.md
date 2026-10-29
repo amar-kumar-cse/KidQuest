@@ -120,6 +120,12 @@ flowchart TB
 
 ```text
 KidQuest/
+├── packages/
+│   └── shared/               # Shared TypeScript domain types & Zod validation schemas (@kidquest/shared)
+│       ├── src/
+│       │   ├── types/        # User, Parent, Kid, Teacher, Task, Reward interfaces
+│       │   └── schemas/      # Runtime Zod validation schemas for forms & API payloads
+│       └── tsconfig.json
 ├── Frontend/                 # Expo SDK 54 React Native cross-platform mobile app
 │   ├── app/                  # Expo Router filesystem navigation ((auth), (parent), (kid))
 │   ├── components/           # Reusable UI components (TaskCard, AISuggestionCard, etc.)
@@ -184,10 +190,16 @@ npm run portal:dev
 # Start Firebase emulators (Auth, Firestore, Functions, Storage, RTDB)
 npm run emulate
 
-# Run full typecheck across all workspaces
+# Build shared packages
+npm run shared:build
+
+# Run full typecheck across all 4 workspaces
 npm run typecheck
 
-# Run unit test suites
+# Run lint checks (Frontend + school-portal)
+npm run lint
+
+# Run unit test suites (Frontend Jest tests)
 npm run test
 ```
 

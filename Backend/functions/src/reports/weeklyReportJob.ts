@@ -13,7 +13,7 @@ export async function processChildWeeklyReport(
   db: admin.firestore.Firestore
 ): Promise<{ success: boolean; childName: string; stats?: ChildWeeklyReportData }> {
   // 1. Fetch child profile
-  const childSnap = await db.collection('users').doc(childId).get();
+  const childSnap = await db.collection('Users').doc(childId).get();
   const childData = childSnap.exists ? childSnap.data() || {} : {};
   const childName = childData.name || 'Champion';
 
@@ -144,7 +144,7 @@ export async function generateAndSendReportsForParent(
   parentId: string,
   db: admin.firestore.Firestore
 ): Promise<{ sentCount: number; children: string[] }> {
-  const parentSnap = await db.collection('users').doc(parentId).get();
+  const parentSnap = await db.collection('Users').doc(parentId).get();
   if (!parentSnap.exists) {
     throw new Error('Parent not found.');
   }
@@ -200,7 +200,7 @@ export const weeklyProgressReportCron = functions
     const db = admin.firestore();
 
     // Query all parents who haven't opted out
-    const parentsSnap = await db.collection('users').where('role', '==', 'parent').get();
+    const parentsSnap = await db.collection('Users').where('role', '==', 'parent').get();
 
     let totalSent = 0;
     for (const doc of parentsSnap.docs) {

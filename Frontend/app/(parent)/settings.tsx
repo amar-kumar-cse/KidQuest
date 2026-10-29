@@ -5,6 +5,8 @@ import { authService } from '../../services/authService';
 import { useAppStore } from '../../store/useAppStore';
 import { auth } from '../../lib/firebase';
 import { registerForPushNotificationsAsync, scheduleDailyReminder, cancelDailyReminder } from '../../lib/notificationService';
+import { parentalGateService } from '../../services/parentalGateService';
+import { ParentalGateModal } from '../../components/parent/ParentalGateModal';
 
 export default function ParentSettings() {
   const router = useRouter();
@@ -12,12 +14,20 @@ export default function ParentSettings() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [dailyReminder, setDailyReminder] = useState(true);
   const [reminderHour, setReminderHour] = useState(16); // 4 PM
+  const [hasPin, setHasPin] = useState(false);
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pinModalMode, setPinModalMode] = useState<'verify' | 'set-pin'>('set-pin');
+  const [deletePending, setDeletePending] = useState(false);
 
   useEffect(() => {
     // Check if push is already set up
     registerForPushNotificationsAsync().then(token => {
       if (token) setPushEnabled(true);
     });
+    // Check PIN status
+    if (auth.currentUser?.uid) {
+      parentalGateService.hasPinSet(auth.currentUser.uid).then(setHasPin);
+    }
   }, []);
 
   const togglePush = async () => {
@@ -63,6 +73,16 @@ export default function ParentSettings() {
     ]);
   };
 
+  const executeAccountDeletion = async () => {
+    try {
+      await authService.deleteAccount();
+      clearStore();
+      router.replace('/(auth)/login');
+    } catch (err: any) {
+      Alert.alert('Error', authService.getErrorMessage(err));
+    }
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
@@ -70,18 +90,14 @@ export default function ParentSettings() {
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete Permanently',
+          text: 'Verify & Delete',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await authService.deleteAccount();
-              clearStore();
-              router.replace('/(auth)/login');
-            } catch (err: any) {
-              Alert.alert('Error', authService.getErrorMessage(err));
-            }
-          }
-        }
+          onPress: () => {
+            setDeletePending(true);
+            setPinModalMode('verify');
+            setPinModalVisible(true);
+          },
+        },
       ]
     );
   };
@@ -161,6 +177,31 @@ export default function ParentSettings() {
           </TouchableOpacity>
         </View>
 
+        {/* Parental Security & PIN */}
+        <Text className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3 ml-1">Parental Security</Text>
+        <View className="bg-white rounded-2xl border border-slate-100 shadow-sm mb-6">
+          <View className="p-5 border-b border-slate-50 flex-row justify-between items-center">
+            <View className="flex-1 mr-4">
+              <Text className="text-base font-semibold text-slate-800">Parental Gate PIN</Text>
+              <Text className="text-xs text-slate-400 mt-1">
+                {hasPin ? '✅ 4-Digit PIN configured' : '⚠️ No PIN set (using adult math challenge)'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => {
+                setDeletePending(false);
+                setPinModalMode('set-pin');
+                setPinModalVisible(true);
+              }}
+              className="bg-indigo-50 border border-indigo-200 px-3.5 py-2 rounded-xl"
+            >
+              <Text className="text-xs font-bold text-indigo-700">
+                {hasPin ? 'Change PIN' : 'Set PIN 🛡️'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Account */}
         <Text className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3 ml-1">Account</Text>
         <View className="bg-white rounded-2xl border border-slate-100 shadow-sm mb-6">
@@ -189,6 +230,28 @@ export default function ParentSettings() {
         </View>
 
       </ScrollView>
+
+      {/* Parental Gate Modal */}
+      <ParentalGateModal
+        visible={pinModalVisible}
+        mode={pinModalMode}
+        title={deletePending ? 'Confirm Account Deletion ⚠️' : pinModalMode === 'set-pin' ? 'Set Parent PIN 🛡️' : 'Parental Verification'}
+        reason={deletePending ? 'Please verify parental authority to permanently erase this family account.' : undefined}
+        onSuccess={() => {
+          setPinModalVisible(false);
+          if (deletePending) {
+            setDeletePending(false);
+            executeAccountDeletion();
+          } else {
+            setHasPin(true);
+            Alert.alert('✅ Success', 'Parent PIN has been saved.');
+          }
+        }}
+        onCancel={() => {
+          setPinModalVisible(false);
+          setDeletePending(false);
+        }}
+      />
     </SafeAreaView>
   );
 }

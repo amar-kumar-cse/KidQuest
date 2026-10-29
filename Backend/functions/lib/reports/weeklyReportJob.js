@@ -45,7 +45,7 @@ const emailService_1 = require("./emailService");
  */
 async function processChildWeeklyReport(childId, parentName, parentEmail, db) {
     // 1. Fetch child profile
-    const childSnap = await db.collection('users').doc(childId).get();
+    const childSnap = await db.collection('Users').doc(childId).get();
     const childData = childSnap.exists ? childSnap.data() || {} : {};
     const childName = childData.name || 'Champion';
     // 2. Compute date boundaries for the past 7 days
@@ -156,7 +156,7 @@ async function processChildWeeklyReport(childId, parentName, parentEmail, db) {
  * Iterates through all children for a parent and sends their reports.
  */
 async function generateAndSendReportsForParent(parentId, db) {
-    const parentSnap = await db.collection('users').doc(parentId).get();
+    const parentSnap = await db.collection('Users').doc(parentId).get();
     if (!parentSnap.exists) {
         throw new Error('Parent not found.');
     }
@@ -204,7 +204,7 @@ exports.weeklyProgressReportCron = functions
     console.log('[weeklyProgressReportCron] Starting automated Sunday 8:00 AM IST report job...');
     const db = admin.firestore();
     // Query all parents who haven't opted out
-    const parentsSnap = await db.collection('users').where('role', '==', 'parent').get();
+    const parentsSnap = await db.collection('Users').where('role', '==', 'parent').get();
     let totalSent = 0;
     for (const doc of parentsSnap.docs) {
         const parentData = doc.data();

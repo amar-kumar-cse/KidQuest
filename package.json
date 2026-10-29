@@ -5,7 +5,8 @@
   "workspaces": [
     "Frontend",
     "school-portal",
-    "Backend/functions"
+    "Backend/functions",
+    "packages/shared"
   ],
   "scripts": {
     "frontend:start": "npm --prefix Frontend run start",
@@ -16,6 +17,8 @@
     "portal:build": "npm --prefix school-portal run build",
     "backend:build": "npm --prefix Backend/functions run build",
     "backend:deploy": "npm run backend:build && firebase deploy --only functions",
+    "shared:build": "npm --prefix packages/shared run build",
+    "shared:typecheck": "npm --prefix packages/shared run type-check",
     "deploy:all": "npm run backend:build && npm run portal:build && firebase deploy",
     "emulate": "firebase emulators:start",
     "backend:functions:build": "npm --prefix Backend/functions run build",
@@ -23,12 +26,15 @@
     "test": "npm --prefix Frontend run test",
     "test:coverage": "npm --prefix Frontend run test:coverage",
     "test:watch": "npm --prefix Frontend run test:watch",
+    "test:rules": "jest Backend/tests/firestore.rules.test.ts --runInBand",
     "lint": "npm --prefix Frontend run lint && npm --prefix school-portal run lint",
-    "typecheck": "npm --prefix Frontend run type-check && npm --prefix Backend/functions run build && npm --prefix school-portal run build",
+    "typecheck": "npm --prefix packages/shared run type-check && npm --prefix Frontend run type-check && npm --prefix Backend/functions run build && npm --prefix school-portal run build",
     "format": "npm --prefix Frontend run format",
     "dev": "concurrently \"npm:frontend:start\" \"npm:emulate\""
   },
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "concurrently": "^8.2.0",
+    "eslint": "^9.39.5"
   }
 }

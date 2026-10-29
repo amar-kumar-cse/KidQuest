@@ -37,39 +37,67 @@ exports.resetDailyStreaks = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 /**
- * Scheduled function that runs daily and resets `currentStreak` to 0
- * for users who have not completed a task in the last 24 hours.
+ * resetDailyStreaks Scheduled Function (Phase 4)
+ * - Runs every night at 12:00 AM IST ('0 0 * * *' in Asia/Kolkata)
+ * - Checks all active child profiles who currently have a streak > 0
+ * - If last completed task was BEFORE yesterday (i.e. child missed an entire calendar day),
+ *   resets currentStreak to 0 and adjusts HP fairly.
+ * - Robust batch chunking: commits in safe batches of 400 documents.
  */
-exports.resetDailyStreaks = functions.pubsub
-    .schedule('every 24 hours')
-    .onRun(async (context) => {
+exports.resetDailyStreaks = functions
+    .region('asia-south1')
+    .pubsub.schedule('0 0 * * *')
+    .timeZone('Asia/Kolkata')
+    .onRun(async () => {
+    console.log('[resetDailyStreaks] Starting daily midnight IST streak check...');
     const db = admin.firestore();
-    const threshold = Date.now() - 24 * 60 * 60 * 1000;
-    // Find kids whose lastCompletedAt is older than 24h and currentStreak > 0
-    const q = db.collection('Users').where('role', '==', 'kid').where('currentStreak', '>', 0);
-    const snaps = await q.get();
-    const batch = db.batch();
-    let ops = 0;
-    snaps.forEach((doc) => {
-        const data = doc.data();
-        const last = data.lastCompletedAt ? new Date(data.lastCompletedAt.seconds * 1000) : null;
-        if (!last || last.getTime() < threshold) {
-            const currentHp = data.hp !== undefined ? data.hp : 100;
-            const newHp = Math.max(0, currentHp - 20);
+    // Today midnight in IST
+    const now = new Date();
+    // Yesterday midnight in IST: 24h before today's start
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayMidnight = todayMidnight - 24 * 60 * 60 * 1000;
+    // Find all children with an active streak (> 0)
+    const snaps = await db
+        .collection('Users')
+        .where('role', '==', 'kid')
+        .where('currentStreak', '>', 0)
+        .get();
+    if (snaps.empty) {
+        console.log('[resetDailyStreaks] No active streaks to evaluate.');
+        return { success: true, updated: 0 };
+    }
+    let batch = db.batch();
+    let batchCount = 0;
+    let totalUpdated = 0;
+    for (const doc of snaps.docs) {
+        const data = doc.data() || {};
+        const lastCompletedAt = data.lastCompletedAt instanceof admin.firestore.Timestamp
+            ? data.lastCompletedAt.toDate()
+            : null;
+        // If never completed or last completion was strictly before yesterday midnight, streak is broken
+        const lastCompletionTime = lastCompletedAt ? lastCompletedAt.getTime() : 0;
+        if (lastCompletionTime < yesterdayMidnight) {
+            const currentHp = typeof data.hp === 'number' ? data.hp : 100;
+            const newHp = Math.max(0, currentHp - 15); // Slight HP deduction on missed streak
             batch.update(doc.ref, {
                 currentStreak: 0,
                 hp: newHp,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-            ops++;
+            batchCount++;
+            totalUpdated++;
+            // Commit and reset batch when approaching 400 docs limit
+            if (batchCount >= 400) {
+                await batch.commit();
+                batch = db.batch();
+                batchCount = 0;
+            }
         }
-        if (ops === 500) {
-            // commit and start a new batch if too many
-            batch.commit();
-        }
-    });
-    if (ops > 0)
+    }
+    if (batchCount > 0) {
         await batch.commit();
-    return { success: true, updated: ops };
+    }
+    console.log(`[resetDailyStreaks] Finished. Evaluated ${snaps.size} kids, reset streaks for ${totalUpdated}.`);
+    return { success: true, updated: totalUpdated, evaluated: snaps.size };
 });
 //# sourceMappingURL=resetDailyStreaks.js.map

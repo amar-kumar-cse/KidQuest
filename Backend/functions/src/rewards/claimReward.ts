@@ -3,19 +3,23 @@ import * as admin from 'firebase-admin';
 import axios from 'axios';
 
 /**
- * Claim a reward — deducts XP from kid in a transaction.
- * Creates a RewardClaim record for parent to acknowledge.
- * Sends push notification to parent.
+ * Claim a reward (Phase 4 Server-Authoritative Gamification)
+ * - Atomic Firestore Transaction:
+ *   1. Verifies reward exists, is active, and kid has sufficient XP
+ *   2. Deducts XP from kid and increments rewardsClaimed count
+ *   3. Writes immutable debit audit record to XpLedger
+ *   4. Creates RewardClaims record for parent to fulfill
+ *   5. Sends in-app and Expo push notification to parent
  */
 export const claimReward = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be logged in.');
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated to claim rewards.');
   }
 
-  const { rewardId } = data as { rewardId: string };
+  const { rewardId } = data as { rewardId?: string };
 
   if (!rewardId || typeof rewardId !== 'string') {
-    throw new functions.https.HttpsError('invalid-argument', 'rewardId is required.');
+    throw new functions.https.HttpsError('invalid-argument', 'Valid rewardId is required.');
   }
 
   const db = admin.firestore();
@@ -25,6 +29,7 @@ export const claimReward = functions.https.onCall(async (data, context) => {
   let parentId = '';
   let xpSpent = 0;
   let kidName = '';
+  let remainingXp = 0;
 
   await db.runTransaction(async (tx) => {
     const rewardRef = db.collection('Rewards').doc(rewardId);
@@ -38,88 +43,115 @@ export const claimReward = functions.https.onCall(async (data, context) => {
     if (!rewardSnap.exists) {
       throw new functions.https.HttpsError('not-found', 'Reward not found.');
     }
+    if (!kidSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'Kid profile not found.');
+    }
 
-    const reward = rewardSnap.data()!;
-    const kid = kidSnap.data()!;
+    const reward = rewardSnap.data() || {};
+    const kid = kidSnap.data() || {};
 
-    if (!reward.isActive) {
+    if (reward.isActive === false) {
       throw new functions.https.HttpsError(
         'failed-precondition',
-        'This reward is no longer available.',
+        'This reward is currently inactive or out of stock.'
       );
     }
 
-    // Verify kid role
+    // Role check: caller must be a kid
     if (kid.role !== 'kid') {
       throw new functions.https.HttpsError('permission-denied', 'Only kids can claim rewards.');
     }
 
-    // Verify this kid is in the same family as the reward
-    if (!kid.familyId || kid.familyId !== reward.familyId) {
+    // Relationship check (support linkedParentId, parentId, and familyId)
+    const isAuthorized =
+      (kid.linkedParentId && kid.linkedParentId === reward.parentId) ||
+      (reward.parentId && kid.parentId === reward.parentId) ||
+      (kid.familyId && reward.familyId && kid.familyId === reward.familyId);
+
+    if (!isAuthorized) {
       throw new functions.https.HttpsError(
         'permission-denied',
-        'Not authorized for this reward.',
+        'You are not authorized to claim rewards from this catalog.'
       );
     }
 
-    // Rate Limiting: Prevent spamming claims
+    // Rate limiting: 5-second cooldown to prevent accidental double-tap
     const now = admin.firestore.Timestamp.now();
-    if (kid.lastClaimedAt) {
-      const secondsSinceLastClaim = now.seconds - kid.lastClaimedAt.seconds;
-      if (secondsSinceLastClaim < 10) { // 10 second cooldown
+    if (kid.lastClaimedAt instanceof admin.firestore.Timestamp) {
+      const secondsSinceLast = now.seconds - kid.lastClaimedAt.seconds;
+      if (secondsSinceLast < 5) {
         throw new functions.https.HttpsError(
           'resource-exhausted',
-          'Please wait a moment before claiming another reward.',
+          'Please wait a few seconds before claiming another reward.'
         );
       }
     }
 
-    const kidXp = (kid.totalXp as number) ?? 0;
-    const xpCost = reward.xpCost as number;
+    const kidXp = typeof kid.totalXp === 'number' ? kid.totalXp : 0;
+    const xpCost = typeof reward.costXp === 'number'
+      ? reward.costXp
+      : (typeof reward.xpCost === 'number' ? reward.xpCost : 0);
+
+    if (xpCost <= 0) {
+      throw new functions.https.HttpsError('failed-precondition', 'Invalid reward cost configuration.');
+    }
+
     if (kidXp < xpCost) {
       throw new functions.https.HttpsError(
         'failed-precondition',
-        `Not enough XP. You need ${xpCost} but have ${kidXp}.`,
+        `Not enough XP! You need ${xpCost} XP but have ${kidXp} XP.`
       );
     }
 
-    // Store for notification
-    rewardTitle = reward.title || 'a reward';
-    parentId = reward.parentId;
+    rewardTitle = reward.title || 'Reward';
+    parentId = reward.parentId || kid.linkedParentId;
     xpSpent = xpCost;
     kidName = kid.name || 'Your kid';
+    remainingXp = kidXp - xpCost;
 
-    // Deduct XP from kid
+    // 1. Deduct XP from kid
     tx.update(kidRef, {
-      totalXp: admin.firestore.FieldValue.increment(-xpCost),
+      totalXp: remainingXp,
       rewardsClaimed: admin.firestore.FieldValue.increment(1),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastClaimedAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastClaimedAt: now,
+      updatedAt: now,
     });
 
-    // Increment reward claimed count
+    // 2. Increment reward claim counter
     tx.update(rewardRef, {
       claimedCount: admin.firestore.FieldValue.increment(1),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: now,
     });
 
-    // Create claim record for parent to acknowledge delivery
+    // 3. Create claim request for parent review
     const claimRef = db.collection('RewardClaims').doc();
     tx.set(claimRef, {
       rewardId,
-      rewardTitle: reward.title,
-      rewardEmoji: reward.iconEmoji ?? '🎁',
+      rewardTitle,
+      iconEmoji: reward.iconEmoji || '🎁',
       kidId: kidUid,
-      kidName: kid.name ?? 'Kid',
-      parentId: reward.parentId,
-      familyId: kid.familyId,
-      xpSpent: xpCost,
-      status: 'pending_delivery',
-      claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+      kidName,
+      parentId,
+      costXp: xpCost,
+      status: 'pending',
+      claimedAt: now,
+    });
+
+    // 4. Immutable XpLedger audit record (anti-cheat)
+    const ledgerRef = db.collection('XpLedger').doc();
+    tx.set(ledgerRef, {
+      kidUid,
+      parentId,
+      amount: -xpCost,
+      balanceAfter: remainingXp,
+      type: 'reward_redeemed',
+      referenceId: claimRef.id,
+      description: `Redeemed reward: ${rewardTitle}`,
+      timestamp: now,
     });
   });
 
-  // Send push notification to parent (best-effort, outside transaction)
+  // Send push notification to parent (outside transaction)
   if (parentId) {
     try {
       const parentSnap = await db.collection('Users').doc(parentId).get();
@@ -130,28 +162,36 @@ export const claimReward = functions.https.onCall(async (data, context) => {
       await notifRef.set({
         recipientId: parentId,
         type: 'reward_claimed',
-        title: '🏆 Reward Claimed!',
-        body: `${kidName} spent ${xpSpent} XP to claim "${rewardTitle}".`,
+        title: '🎁 Reward Claimed!',
+        body: `${kidName} redeemed "${rewardTitle}" for ${xpSpent} XP!`,
         createdAt: admin.firestore.Timestamp.now(),
         isRead: false,
-        familyId: parentData?.familyId || null,
       });
 
-      // Expo push
-      const pushToken = parentData?.expoPushToken;
-      if (pushToken && typeof pushToken === 'string') {
-        await axios.post('https://exp.host/--/api/v2/push/send', {
-          to: pushToken,
-          sound: 'default',
-          title: '🏆 Reward Claimed!',
-          body: `${kidName} spent ${xpSpent} XP to claim "${rewardTitle}".`,
-          data: { type: 'reward_claimed', rewardId },
-        }, { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
+      // Expo Push notification
+      const pushToken = parentData?.expoPushToken || parentData?.fcmToken;
+      if (pushToken && typeof pushToken === 'string' && (pushToken.startsWith('ExponentPushToken[') || pushToken.startsWith('ExpoPushToken['))) {
+        await axios.post(
+          'https://exp.host/--/api/v2/push/send',
+          {
+            to: pushToken,
+            sound: 'default',
+            title: '🎁 Reward Claimed!',
+            body: `${kidName} redeemed "${rewardTitle}" for ${xpSpent} XP!`,
+            data: { type: 'reward_claimed', rewardId },
+          },
+          { headers: { 'Content-Type': 'application/json' }, timeout: 10000 }
+        );
       }
-    } catch (err: any) {
-      console.warn('[claimReward] Parent notification failed:', err?.toString?.() || err);
+    } catch (pushErr) {
+      console.warn('[claimReward] Failed to dispatch parent notification:', pushErr);
     }
   }
 
-  return { success: true };
+  return {
+    success: true,
+    rewardTitle,
+    xpSpent,
+    remainingXp,
+  };
 });

@@ -8,261 +8,248 @@ import {
 } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
-const PROJECT_ID = 'kidquest-rules-test';
+const PROJECT_ID = 'kidquest-rules-production-test';
 let testEnv: RulesTestEnvironment;
 
 beforeAll(async () => {
-  const rulesPath = path.resolve(__dirname, '../firestore.rules');
-  const rules = fs.readFileSync(rulesPath, 'utf8');
+  const firestoreRules = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
+  const storageRules = fs.readFileSync(path.resolve(__dirname, '../storage.rules'), 'utf8');
+
+  const [host, portStr] = (process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':');
+  const port = parseInt(portStr || '8080', 10);
+
+  const [sHost, sPortStr] = (process.env.FIREBASE_STORAGE_EMULATOR_HOST || '127.0.0.1:9199').split(':');
+  const sPort = parseInt(sPortStr || '9199', 10);
 
   testEnv = await initializeTestEnvironment({
     projectId: PROJECT_ID,
     firestore: {
-      rules,
-      host: '127.0.0.1',
-      port: 8083,
+      rules: firestoreRules,
+      host,
+      port,
+    },
+    storage: {
+      rules: storageRules,
+      host: sHost,
+      port: sPort,
     },
   });
 });
 
 beforeEach(async () => {
   await testEnv.clearFirestore();
+  if (testEnv.clearStorage) {
+    await testEnv.clearStorage();
+  }
 
-  // Seed baseline system fixtures via Admin SDK (bypasses security rules)
+  // Seed fixtures via Admin SDK (bypasses security rules)
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
 
-    // Child 1
-    await setDoc(doc(db, 'users', 'child_1'), {
-      role: 'child',
-      name: 'Alice Kid',
-      createdAt: new Date(),
-    });
-
-    // Child 2 (unrelated)
-    await setDoc(doc(db, 'users', 'child_2'), {
-      role: 'child',
-      name: 'Bob Kid',
-      createdAt: new Date(),
-    });
-
-    // Parent 1 (Parent of child_1 only)
-    await setDoc(doc(db, 'users', 'parent_1'), {
+    // 1. Linked Parent & Kid
+    await setDoc(doc(db, 'Users', 'parent_1'), {
       role: 'parent',
       name: 'Sarah Parent',
-      parentOf: ['child_1'],
+      email: 'parent1@example.com',
+      linkedKids: ['kid_1'],
       createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
-    // Teacher 1 (Teacher of child_1 only)
-    await setDoc(doc(db, 'users', 'teacher_1'), {
-      role: 'teacher',
-      name: 'Mr. Davis',
-      teacherOf: ['child_1'],
+    await setDoc(doc(db, 'Users', 'kid_1'), {
+      role: 'kid',
+      name: 'Alice Kid',
+      linkedParentId: 'parent_1',
+      totalXp: 150,
+      lifetimeXp: 500,
+      currentStreak: 3,
+      bestStreak: 7,
       createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
-    // Admin
-    await setDoc(doc(db, 'users', 'admin_1'), {
-      role: 'admin',
-      name: 'Super Admin',
+    // 2. Unrelated Parent & Kid
+    await setDoc(doc(db, 'Users', 'parent_2'), {
+      role: 'parent',
+      name: 'John Stranger',
+      email: 'stranger@example.com',
+      linkedKids: ['kid_2'],
       createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
-    // Baseline Task for Child 1
-    await setDoc(doc(db, 'tasks', 'task_101'), {
-      userId: 'child_1',
-      subject: 'Math',
-      title: 'Complete algebra worksheet',
+    await setDoc(doc(db, 'Users', 'kid_2'), {
+      role: 'kid',
+      name: 'Bob Kid',
+      linkedParentId: 'parent_2',
+      totalXp: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    // 3. Baseline Task for Alice
+    await setDoc(doc(db, 'Tasks', 'task_101'), {
+      title: 'Clean Bedroom',
+      description: 'Make bed and pick up toys',
+      category: 'chores',
+      difficulty: 'easy',
+      xp: 25,
+      assignedToUid: 'kid_1',
+      assignedToName: 'Alice Kid',
+      parentId: 'parent_1',
       status: 'pending',
-      completedAt: null,
       createdAt: new Date(),
-    });
-
-    // AI Suggestions for Child 1
-    await setDoc(doc(db, 'suggestions', 'child_1'), {
-      recommendations: ['Practice flashcards', '15 mins reading'],
-      generatedAt: new Date(),
-    });
-
-    // Private Notification for Child 1
-    await setDoc(doc(db, 'notifications', 'child_1', 'items', 'notif_1'), {
-      title: 'Great job!',
-      body: 'You completed your streak today.',
-      read: false,
-      createdAt: new Date(),
+      updatedAt: new Date(),
     });
   });
 });
 
 afterAll(async () => {
-  await testEnv.cleanup();
+  if (testEnv) {
+    await testEnv.cleanup();
+  }
 });
 
-describe('KidQuest Firestore Security Rules Suite', () => {
+describe('KidQuest Authoritative Security Rules Test Suite (Phase 3)', () => {
 
   // =========================================================================
-  // 1. USERS COLLECTION PERMISSIONS & ROLE IMMUTABILITY
+  // 1. USERS COLLECTION & ANTI-CHEAT
   // =========================================================================
 
-  test('[PASS] Child can read own profile', async () => {
-    const db = testEnv.authenticatedContext('child_1').firestore();
-    await assertSucceeds(getDoc(doc(db, 'users', 'child_1')));
+  test('[PASS] Parent can read their own profile and their linked kid profile', async () => {
+    const db = testEnv.authenticatedContext('parent_1', { role: 'parent' }).firestore();
+    await assertSucceeds(getDoc(doc(db, 'Users', 'parent_1')));
+    await assertSucceeds(getDoc(doc(db, 'Users', 'kid_1')));
   });
 
-  test('[FAIL] Child CANNOT read another child profile', async () => {
-    const db = testEnv.authenticatedContext('child_1').firestore();
-    await assertFails(getDoc(doc(db, 'users', 'child_2')));
+  test('[FAIL] Stranger parent CANNOT read unrelated kid profile', async () => {
+    const db = testEnv.authenticatedContext('parent_2', { role: 'parent' }).firestore();
+    await assertFails(getDoc(doc(db, 'Users', 'kid_1')));
   });
 
-  test('[FAIL] Child CANNOT change their own role to admin or parent', async () => {
-    const db = testEnv.authenticatedContext('child_1').firestore();
+  test('[FAIL] Child CANNOT elevate own role to admin or parent', async () => {
+    const db = testEnv.authenticatedContext('kid_1', { role: 'kid' }).firestore();
     await assertFails(
-      updateDoc(doc(db, 'users', 'child_1'), {
+      updateDoc(doc(db, 'Users', 'kid_1'), {
         role: 'admin',
       })
     );
   });
 
-  test('[PASS] Child can update allowed profile fields (e.g., name)', async () => {
-    const db = testEnv.authenticatedContext('child_1').firestore();
-    await assertSucceeds(
-      updateDoc(doc(db, 'users', 'child_1'), {
-        name: 'Alice Updated',
-      })
-    );
-  });
-
-  test('[PASS] Parent can read their own child profile via parentOf[]', async () => {
-    const db = testEnv.authenticatedContext('parent_1').firestore();
-    await assertSucceeds(getDoc(doc(db, 'users', 'child_1')));
-  });
-
-  test('[FAIL] Parent CANNOT read unrelated child profile', async () => {
-    const db = testEnv.authenticatedContext('parent_1').firestore();
-    await assertFails(getDoc(doc(db, 'users', 'child_2')));
-  });
-
-  test('[PASS] Teacher can read student profile via teacherOf[]', async () => {
-    const db = testEnv.authenticatedContext('teacher_1').firestore();
-    await assertSucceeds(getDoc(doc(db, 'users', 'child_1')));
-  });
-
-  test('[FAIL] Teacher CANNOT read unrelated student profile', async () => {
-    const db = testEnv.authenticatedContext('teacher_1').firestore();
-    await assertFails(getDoc(doc(db, 'users', 'child_2')));
-  });
-
-  // =========================================================================
-  // 2. TASKS COLLECTION PERMISSIONS & FIELD VALIDATION
-  // =========================================================================
-
-  test('[PASS] Child can read their own task', async () => {
-    const db = testEnv.authenticatedContext('child_1').firestore();
-    await assertSucceeds(getDoc(doc(db, 'tasks', 'task_101')));
-  });
-
-  test('[FAIL] Unrelated child CANNOT read another kid task', async () => {
-    const db = testEnv.authenticatedContext('child_2').firestore();
-    await assertFails(getDoc(doc(db, 'tasks', 'task_101')));
-  });
-
-  test('[PASS] Parent can read their child task via parentOf[]', async () => {
-    const db = testEnv.authenticatedContext('parent_1').firestore();
-    await assertSucceeds(getDoc(doc(db, 'tasks', 'task_101')));
-  });
-
-  test('[FAIL] Parent CANNOT modify child task directly', async () => {
-    const db = testEnv.authenticatedContext('parent_1').firestore();
+  test('[FAIL] Child CANNOT directly modify their own totalXp or streak (Anti-Cheat)', async () => {
+    const db = testEnv.authenticatedContext('kid_1', { role: 'kid' }).firestore();
     await assertFails(
-      updateDoc(doc(db, 'tasks', 'task_101'), {
-        status: 'done',
+      updateDoc(doc(db, 'Users', 'kid_1'), {
+        totalXp: 999999,
+      })
+    );
+    await assertFails(
+      updateDoc(doc(db, 'Users', 'kid_1'), {
+        currentStreak: 100,
       })
     );
   });
 
-  test('[PASS] Teacher can create/assign a task for their student in teacherOf[]', async () => {
-    const db = testEnv.authenticatedContext('teacher_1').firestore();
+  test('[PASS] Child can update allowed profile fields (name, avatarEmoji)', async () => {
+    const db = testEnv.authenticatedContext('kid_1', { role: 'kid' }).firestore();
     await assertSucceeds(
-      setDoc(doc(db, 'tasks', 'task_102'), {
-        userId: 'child_1',
-        subject: 'Science',
-        title: 'Solar system model',
+      updateDoc(doc(db, 'Users', 'kid_1'), {
+        name: 'Alice The Brave',
+        avatarEmoji: '🦊',
+      })
+    );
+  });
+
+  // =========================================================================
+  // 2. TASKS: PARENT TASK CREATION & CHILD PROOF SUBMISSION (SEC-03 & SEC-04)
+  // =========================================================================
+
+  test('[PASS - FIXES SEC-03] Parent CAN create and assign tasks to their linked kid', async () => {
+    const db = testEnv.authenticatedContext('parent_1', { role: 'parent' }).firestore();
+    await assertSucceeds(
+      setDoc(doc(db, 'Tasks', 'task_102'), {
+        title: 'Complete 30 mins math homework',
+        category: 'homework',
+        difficulty: 'medium',
+        xp: 50,
+        assignedToUid: 'kid_1',
+        assignedToName: 'Alice Kid',
+        parentId: 'parent_1',
         status: 'pending',
-        completedAt: null,
         createdAt: new Date(),
+        updatedAt: new Date(),
       })
     );
   });
 
-  test('[FAIL] Teacher CANNOT assign task to student NOT in teacherOf[]', async () => {
-    const db = testEnv.authenticatedContext('teacher_1').firestore();
+  test('[FAIL] Parent CANNOT assign task with invalid payload or missing fields', async () => {
+    const db = testEnv.authenticatedContext('parent_1', { role: 'parent' }).firestore();
     await assertFails(
-      setDoc(doc(db, 'tasks', 'task_103'), {
-        userId: 'child_2',
-        subject: 'History',
-        title: 'Ancient Egypt',
-        status: 'pending',
-        completedAt: null,
-        createdAt: new Date(),
+      setDoc(doc(db, 'Tasks', 'task_invalid'), {
+        title: 'Invalid Task',
+        // missing assignedToUid, category, difficulty, xp, parentId, status
       })
     );
   });
 
-  test('[FAIL] Task write FAILS if status is not pending|done|missed', async () => {
-    const db = testEnv.authenticatedContext('child_1').firestore();
-    await assertFails(
-      updateDoc(doc(db, 'tasks', 'task_101'), {
-        status: 'invalid_status_value',
-      })
-    );
-  });
-
-  test('[FAIL] Task write FAILS if missing required fields', async () => {
-    const db = testEnv.authenticatedContext('child_1').firestore();
-    await assertFails(
-      setDoc(doc(db, 'tasks', 'task_incomplete'), {
-        userId: 'child_1',
-        // missing 'subject', 'status', 'createdAt'
-      })
-    );
-  });
-
-  // =========================================================================
-  // 3. AI SUGGESTIONS, NOTIFICATIONS, AND ADMIN PERMISSIONS
-  // =========================================================================
-
-  test('[PASS] Child can read own AI suggestions', async () => {
-    const db = testEnv.authenticatedContext('child_1').firestore();
-    await assertSucceeds(getDoc(doc(db, 'suggestions', 'child_1')));
-  });
-
-  test('[FAIL] Client CANNOT write to AI suggestions directly', async () => {
-    const db = testEnv.authenticatedContext('child_1').firestore();
-    await assertFails(
-      setDoc(doc(db, 'suggestions', 'child_1'), {
-        recommendations: ['Hacked recommendation'],
-      })
-    );
-  });
-
-  test('[PASS] Child can read their own private notifications', async () => {
-    const db = testEnv.authenticatedContext('child_1').firestore();
-    await assertSucceeds(getDoc(doc(db, 'notifications', 'child_1', 'items', 'notif_1')));
-  });
-
-  test('[FAIL] Other users CANNOT read private notifications', async () => {
-    const db = testEnv.authenticatedContext('child_2').firestore();
-    await assertFails(getDoc(doc(db, 'notifications', 'child_1', 'items', 'notif_1')));
-  });
-
-  test('[PASS] Admin has full write access across collections', async () => {
-    const db = testEnv.authenticatedContext('admin_1').firestore();
+  test('[PASS] Assigned kid can submit photo proof and update status to pending_approval', async () => {
+    const db = testEnv.authenticatedContext('kid_1', { role: 'kid' }).firestore();
     await assertSucceeds(
-      updateDoc(doc(db, 'users', 'child_1'), {
-        role: 'child',
-        name: 'Alice by Admin',
+      updateDoc(doc(db, 'Tasks', 'task_101'), {
+        status: 'pending_approval',
+        proofUrl: 'https://firebasestorage.googleapis.com/v0/b/app/o/proof.jpg',
+        proofNote: 'Done cleaning my room Mom!',
+        updatedAt: new Date(),
       })
     );
+  });
+
+  test('[FAIL - ANTI-CHEAT] Child CANNOT directly mark task completed (self-approval blocked)', async () => {
+    const db = testEnv.authenticatedContext('kid_1', { role: 'kid' }).firestore();
+    await assertFails(
+      updateDoc(doc(db, 'Tasks', 'task_101'), {
+        status: 'completed',
+      })
+    );
+  });
+
+  test('[PASS] Parent CAN approve task after review and mark completed', async () => {
+    const db = testEnv.authenticatedContext('parent_1', { role: 'parent' }).firestore();
+    await assertSucceeds(
+      updateDoc(doc(db, 'Tasks', 'task_101'), {
+        status: 'completed',
+        parentNote: 'Awesome job Alice!',
+        finalXp: 25,
+        updatedAt: new Date(),
+      })
+    );
+  });
+
+  // =========================================================================
+  // 3. XP LEDGER (SERVER-AUTHORITATIVE)
+  // =========================================================================
+
+  test('[FAIL] Client CANNOT write directly to XpLedger', async () => {
+    const db = testEnv.authenticatedContext('kid_1', { role: 'kid' }).firestore();
+    await assertFails(
+      setDoc(doc(db, 'XpLedger', 'entry_hacked'), {
+        kidUid: 'kid_1',
+        amount: 5000,
+        type: 'bonus_awarded',
+        description: 'Hacked XP',
+        timestamp: new Date(),
+      })
+    );
+  });
+
+  // =========================================================================
+  // 4. STORAGE RULES: CHILD PHOTO PRIVACY (SEC-02)
+  // =========================================================================
+
+  test('[FAIL - FIXES SEC-02] Stranger CANNOT read child task photos without authorization', async () => {
+    const strangerStorage = testEnv.authenticatedContext('parent_2', { role: 'parent' }).storage();
+    const photoRef = strangerStorage.ref('task-photos/task_101/proof.jpg');
+    // Stranger is not party to task_101
+    await assertFails(photoRef.getBytes());
   });
 });

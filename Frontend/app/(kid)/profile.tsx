@@ -10,6 +10,7 @@ import { XPBar } from '../../components/ui/XPBar';
 import { StreakBadge } from '../../components/ui/StreakBadge';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { useAppStore } from '../../store/useAppStore';
+import { ParentalGateModal } from '../../components/parent/ParentalGateModal';
 
 const AVATARS = ['🦸', '🧙', '🦊', '🐯', '🦁', '🐉', '🚀', '⚡'];
 
@@ -21,6 +22,7 @@ export default function KidProfileScreen() {
   const [familyCode, setFamilyCode] = useState('');
   const [linking, setLinking] = useState(false);
   const [showCodeInput, setShowCodeInput] = useState(false);
+  const [parentalGateVisible, setParentalGateVisible] = useState(false);
 
   const handleAvatarChange = async (emoji: string) => {
     if (!kidId) return;
@@ -51,22 +53,26 @@ export default function KidProfileScreen() {
     ]);
   };
 
+  const executeDeletion = async () => {
+    try {
+      await authService.deleteAccount();
+      clearStore();
+      router.replace('/(auth)/login');
+    } catch (err: any) {
+      Alert.alert('Error', authService.getErrorMessage(err));
+    }
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
-      'Delete Account',
-      'Are you sure you want to permanently delete your account? This action CANNOT be undone.',
+      'Delete Quest Account',
+      'Are you sure? A parent or guardian must verify before permanently erasing this quest profile.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive', onPress: async () => {
-            try {
-              await authService.deleteAccount();
-              clearStore();
-              router.replace('/(auth)/login');
-            } catch (err: any) {
-              Alert.alert('Error', authService.getErrorMessage(err));
-            }
-          }
+          text: 'Verify Parent & Delete',
+          style: 'destructive',
+          onPress: () => setParentalGateVisible(true),
         },
       ]
     );
@@ -148,6 +154,18 @@ export default function KidProfileScreen() {
           <Text className="text-red-400 font-bold text-sm">Delete Account</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Parental Gate Modal */}
+      <ParentalGateModal
+        visible={parentalGateVisible}
+        title="Parent Verification 🛡️"
+        reason="A parent must confirm before permanently deleting this quest account."
+        onSuccess={() => {
+          setParentalGateVisible(false);
+          executeDeletion();
+        }}
+        onCancel={() => setParentalGateVisible(false)}
+      />
     </SafeAreaView>
   );
 }

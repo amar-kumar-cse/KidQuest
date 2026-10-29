@@ -166,13 +166,13 @@ export const generateStudySuggestions = functions
 
     // Permissions check: caller must be the user, an admin, or their parent
     if (targetUserId !== callerUid) {
-      const callerDoc = await db.collection('users').doc(callerUid).get();
+      const callerDoc = await db.collection('Users').doc(callerUid).get();
       const callerData = callerDoc.data() || {};
       const isAdmin = callerData.role === 'admin';
       const isParentOfChild =
         callerData.role === 'parent' &&
-        Array.isArray(callerData.parentOf) &&
-        callerData.parentOf.includes(targetUserId);
+        ((Array.isArray(callerData.parentOf) && callerData.parentOf.includes(targetUserId)) ||
+         (Array.isArray(callerData.linkedKids) && callerData.linkedKids.includes(targetUserId)));
 
       if (!isAdmin && !isParentOfChild) {
         throw new functions.https.HttpsError(
@@ -184,7 +184,7 @@ export const generateStudySuggestions = functions
 
     // 1. Fetch child profile for personalization
     let childName = 'Champion';
-    const userDoc = await db.collection('users').doc(targetUserId).get();
+    const userDoc = await db.collection('Users').doc(targetUserId).get();
     if (userDoc.exists) {
       childName = userDoc.data()?.name || 'Champion';
     }
