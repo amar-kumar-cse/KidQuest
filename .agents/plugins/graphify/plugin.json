@@ -1,0 +1,5 @@
+﻿{
+  "name": "graphify",
+  "version": "1.0.0",
+  "description": "Turn any codebase or folder into an interactive knowledge graph with community detection and graph querying."
+}

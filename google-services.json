@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "255548121122",
+    "project_id": "kidquest-45298",
+    "storage_bucket": "kidquest-45298.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:255548121122:android:cf57c8167609241aa72a7b",
+        "android_client_info": {
+          "package_name": "com.nowicstudio.kidquest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD7ITk-BdiFp7ooqDd4dHhSmVockWkV16E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
