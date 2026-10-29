@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { getCategoryDef } from '../../constants/TaskCategories';
 import type { Task } from '../../types';
 
@@ -34,6 +34,11 @@ export function TaskCard({ task, onPress, showKidName = false }: TaskCardProps) 
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.85}
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={`Quest: ${task.title}. ${task.xp} XP. Status: ${status.label}.`}
+      accessibilityHint="Double tap to view quest details"
+      style={{ minHeight: 44 }}
       className="bg-white rounded-2xl p-4 mb-3 border border-slate-100 shadow-sm"
     >
       {/* Header */}

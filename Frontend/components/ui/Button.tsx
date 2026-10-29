@@ -3,77 +3,233 @@ import {
   TouchableOpacity,
   Text,
   ActivityIndicator,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
   type TouchableOpacityProps,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { tokens } from '../../constants/tokens';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
-interface ButtonProps extends TouchableOpacityProps {
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'kid';
+export type ButtonSize = 'sm' | 'md' | 'lg';
+
+export interface ButtonProps extends TouchableOpacityProps {
   title: string;
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'kid';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   isLoading?: boolean;
   leftIcon?: string;
+  enableHaptics?: boolean;
+  ariaLabel?: string;
 }
 
-export function Button({
+export const Button: React.FC<ButtonProps> = ({
   title,
   variant = 'primary',
   size = 'md',
   isLoading = false,
   leftIcon,
   disabled,
+  enableHaptics = true,
+  ariaLabel,
   style,
+  onPress,
   ...rest
-}: ButtonProps) {
-  const sizeStyles = {
-    sm: 'px-4 py-2 rounded-xl',
-    md: 'px-6 py-3.5 rounded-2xl',
-    lg: 'px-8 py-4 rounded-2xl',
+}) => {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const handlePress = (e: any) => {
+    if (disabled || isLoading) return;
+    if (enableHaptics) {
+      try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      } catch {}
+    }
+    onPress?.(e);
   };
 
-  const textSizeStyles = {
-    sm: 'text-sm',
-    md: 'text-base',
-    lg: 'text-lg',
-  };
+  const isInteractiveDisabled = disabled || isLoading;
 
-  const variantStyles = {
-    primary: 'bg-indigo-600 active:bg-indigo-700',
-    secondary: 'bg-slate-100 border border-slate-200 active:bg-slate-200',
-    danger: 'bg-red-500 active:bg-red-600',
-    ghost: 'bg-transparent border border-indigo-300 active:bg-indigo-50',
-    kid: 'bg-yellow-400 border-b-4 border-yellow-500 active:bg-yellow-500',
-  };
+  // View Styles
+  const sizeViewStyle = sizeStyles[size];
+  const variantViewStyle = isDark ? darkVariantStyles[variant] : lightVariantStyles[variant];
 
-  const textVariantStyles = {
-    primary: 'text-white font-bold',
-    secondary: 'text-slate-700 font-semibold',
-    danger: 'text-white font-bold',
-    ghost: 'text-indigo-600 font-semibold',
-    kid: 'text-yellow-900 font-black',
-  };
+  // Text Styles
+  const sizeTextStyle = sizeTextStyles[size];
+  const variantTextStyle = isDark ? darkVariantTextStyles[variant] : lightVariantTextStyles[variant];
 
   return (
     <TouchableOpacity
-      className={`flex-row items-center justify-center ${sizeStyles[size]} ${variantStyles[variant]} ${disabled || isLoading ? 'opacity-60' : ''}`}
-      disabled={disabled || isLoading}
-      style={style}
+      onPress={handlePress}
+      disabled={isInteractiveDisabled}
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={ariaLabel || title}
+      accessibilityState={{
+        disabled: Boolean(disabled),
+        busy: Boolean(isLoading),
+      }}
+      activeOpacity={0.75}
+      style={[
+        styles.base,
+        sizeViewStyle,
+        variantViewStyle,
+        isInteractiveDisabled && styles.disabled,
+        style,
+      ]}
       {...rest}
     >
       {isLoading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'secondary' || variant === 'ghost' ? '#6366f1' : '#fff'}
+          color={variant === 'secondary' || variant === 'ghost' ? tokens.colors.primary : '#FFFFFF'}
+          accessibilityLabel="Loading"
         />
       ) : (
         <>
           {leftIcon && (
-            <Text className={`mr-2 ${textSizeStyles[size]}`}>{leftIcon}</Text>
+            <Text
+              style={[styles.iconText, sizeTextStyle]}
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+            >
+              {leftIcon}
+            </Text>
           )}
-          <Text className={`${textSizeStyles[size]} ${textVariantStyles[variant]}`}>
+          <Text
+            maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+            style={[
+              styles.textBase,
+              sizeTextStyle,
+              variantTextStyle,
+            ]}
+          >
             {title}
           </Text>
         </>
       )}
     </TouchableOpacity>
   );
-}
+};
+
+const styles = StyleSheet.create({
+  base: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: tokens.touch.minSize, // 44px+ WCAG standard
+    minWidth: tokens.touch.minSize,
+    borderRadius: tokens.radii.lg,
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  textBase: {
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  iconText: {
+    marginRight: tokens.spacing.sm,
+  },
+});
+
+const sizeStyles: Record<ButtonSize, ViewStyle> = {
+  sm: {
+    paddingHorizontal: tokens.spacing.lg,
+    paddingVertical: tokens.spacing.sm,
+    minHeight: tokens.touch.minSize,
+  },
+  md: {
+    paddingHorizontal: tokens.spacing.xl,
+    paddingVertical: tokens.spacing.md,
+    minHeight: 48,
+  },
+  lg: {
+    paddingHorizontal: tokens.spacing['2xl'],
+    paddingVertical: tokens.spacing.lg,
+    minHeight: 54,
+  },
+};
+
+const sizeTextStyles: Record<ButtonSize, TextStyle> = {
+  sm: {
+    fontSize: tokens.typography.sizes.sm,
+    lineHeight: tokens.typography.lineHeights.sm,
+  },
+  md: {
+    fontSize: tokens.typography.sizes.base,
+    lineHeight: tokens.typography.lineHeights.base,
+  },
+  lg: {
+    fontSize: tokens.typography.sizes.lg,
+    lineHeight: tokens.typography.lineHeights.lg,
+  },
+};
+
+const lightVariantStyles: Record<ButtonVariant, ViewStyle> = {
+  primary: {
+    backgroundColor: tokens.colors.primary,
+  },
+  secondary: {
+    backgroundColor: tokens.colors.light.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: tokens.colors.light.border,
+  },
+  danger: {
+    backgroundColor: tokens.colors.danger,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: tokens.colors.primaryLight,
+  },
+  kid: {
+    backgroundColor: tokens.colors.xpGold,
+    borderBottomWidth: 4,
+    borderBottomColor: '#D97706',
+  },
+};
+
+const darkVariantStyles: Record<ButtonVariant, ViewStyle> = {
+  primary: {
+    backgroundColor: tokens.colors.primaryHover,
+  },
+  secondary: {
+    backgroundColor: tokens.colors.dark.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: tokens.colors.dark.border,
+  },
+  danger: {
+    backgroundColor: '#DC2626',
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: tokens.colors.primary,
+  },
+  kid: {
+    backgroundColor: '#D97706',
+    borderBottomWidth: 4,
+    borderBottomColor: '#B45309',
+  },
+};
+
+const lightVariantTextStyles: Record<ButtonVariant, TextStyle> = {
+  primary: { color: '#FFFFFF' },
+  secondary: { color: tokens.colors.light.text },
+  danger: { color: '#FFFFFF' },
+  ghost: { color: tokens.colors.primary },
+  kid: { color: '#451A03', fontWeight: '800' },
+};
+
+const darkVariantTextStyles: Record<ButtonVariant, TextStyle> = {
+  primary: { color: '#FFFFFF' },
+  secondary: { color: tokens.colors.dark.text },
+  danger: { color: '#FFFFFF' },
+  ghost: { color: tokens.colors.primaryLight },
+  kid: { color: '#FFFFFF', fontWeight: '800' },
+};
+
+export default Button;

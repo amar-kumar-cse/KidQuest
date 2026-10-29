@@ -1,22 +1,97 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { tokens } from '../../constants/tokens';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
-interface EmptyStateProps {
+export interface EmptyStateProps {
   icon?: string;
   title: string;
   message?: string;
   action?: React.ReactNode;
 }
 
-export function EmptyState({ icon = '📭', title, message, action }: EmptyStateProps) {
+export const EmptyState: React.FC<EmptyStateProps> = ({
+  icon = '📭',
+  title,
+  message,
+  action,
+}) => {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
   return (
-    <View className="flex-1 items-center justify-center py-16 px-8">
-      <Text className="text-5xl mb-4">{icon}</Text>
-      <Text className="text-lg font-bold text-slate-700 text-center mb-2">{title}</Text>
+    <View
+      style={styles.container}
+      accessible={true}
+      accessibilityRole="none"
+      accessibilityLabel={`${title}. ${message || ''}`}
+    >
+      <Text style={styles.icon}>{icon}</Text>
+      <Text
+        maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+        style={[
+          styles.title,
+          isDark ? styles.titleDark : styles.titleLight,
+        ]}
+      >
+        {title}
+      </Text>
       {message && (
-        <Text className="text-slate-400 text-center text-sm leading-5 mb-6">{message}</Text>
+        <Text
+          maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+          style={[
+            styles.message,
+            isDark ? styles.messageDark : styles.messageLight,
+          ]}
+        >
+          {message}
+        </Text>
       )}
-      {action}
+      {action && <View style={styles.actionContainer}>{action}</View>}
     </View>
   );
-}
+};
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: tokens.spacing['4xl'],
+    paddingHorizontal: tokens.spacing['2xl'],
+    width: '100%',
+  },
+  icon: {
+    fontSize: 52,
+    marginBottom: tokens.spacing.lg,
+  },
+  title: {
+    fontSize: tokens.typography.sizes.lg,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: tokens.spacing.sm,
+  },
+  titleLight: {
+    color: tokens.colors.light.text,
+  },
+  titleDark: {
+    color: tokens.colors.dark.text,
+  },
+  message: {
+    fontSize: tokens.typography.sizes.sm,
+    lineHeight: tokens.typography.lineHeights.sm,
+    textAlign: 'center',
+    maxWidth: 320,
+    marginBottom: tokens.spacing.xl,
+  },
+  messageLight: {
+    color: tokens.colors.light.textMuted,
+  },
+  messageDark: {
+    color: tokens.colors.dark.textMuted,
+  },
+  actionContainer: {
+    marginTop: tokens.spacing.sm,
+  },
+});
+
+export default EmptyState;

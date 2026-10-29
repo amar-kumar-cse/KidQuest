@@ -182,4 +182,9 @@ jest.mock('expo-sqlite', () => ({
   openDatabaseSync: jest.fn(() => mockSqliteDb),
 }));
 
+// ─── 10. Mock expo-localization ──────────────────────────────────────────────
+jest.mock('expo-localization', () => ({
+  getLocales: jest.fn(() => [{ languageCode: 'en', languageTag: 'en-US' }]),
+}));
+
 export { mockSqliteDb };

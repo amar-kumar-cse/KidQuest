@@ -1,0 +1,84 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "retry": "Try Again",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "done": "Done",
+    "close": "Close",
+    "offline": "Offline Mode",
+    "online": "Connected",
+    "pendingSync": "{{count}} pending sync",
+    "pendingSync_plural": "{{count}} pending syncs",
+    "search": "Search...",
+    "filter": "Filter",
+    "all": "All",
+    "points": "XP"
+  },
+  "nav": {
+    "home": "Home",
+    "tasks": "Quests",
+    "rewards": "Rewards",
+    "profile": "Profile",
+    "dashboard": "Dashboard",
+    "analytics": "Analytics",
+    "settings": "Settings"
+  },
+  "tasks": {
+    "title": "Quests & Tasks",
+    "myQuests": "My Active Quests",
+    "pending": "To Do",
+    "pendingApproval": "Under Review",
+    "completed": "Completed",
+    "createTask": "Create New Quest",
+    "taskTitle": "Quest Title",
+    "taskDescription": "What needs to be done?",
+    "assignTo": "Assign To",
+    "rewardXp": "Reward (XP)",
+    "dueDate": "Due Date",
+    "submitProof": "Submit Proof",
+    "uploadPhoto": "Take or Upload Photo",
+    "proofNote": "Add a note for parent (optional)",
+    "approve": "Approve Quest",
+    "reject": "Ask for Redo",
+    "emptyTitle": "No Quests Found",
+    "emptyDesc": "You have no active quests right now. Time to start a new adventure!",
+    "errorTitle": "Could Not Load Quests",
+    "errorDesc": "We ran into an issue loading your quests. Please check your connection and retry."
+  },
+  "rewards": {
+    "title": "Rewards Vault",
+    "availableXp": "Your Balance: {{xp}} XP",
+    "claim": "Claim Reward",
+    "claimed": "Claimed!",
+    "notEnoughXp": "Need {{xp}} more XP",
+    "emptyTitle": "No Rewards Yet",
+    "emptyDesc": "Ask your parent to add fun rewards to the vault!"
+  },
+  "auth": {
+    "login": "Sign In",
+    "signup": "Create Account",
+    "email": "Email Address",
+    "password": "Password",
+    "parentPin": "Parental PIN",
+    "pinPrompt": "Enter 4-digit Parent PIN to continue",
+    "wrongPin": "Incorrect PIN. Please try again.",
+    "coppaNotice": "Parent consent verified according to COPPA guidelines."
+  },
+  "gamification": {
+    "streak": "{{count}} Day Streak!",
+    "streakAtRisk": "Complete a quest today to keep your streak alive!",
+    "level": "Level {{level}}",
+    "badgeEarned": "Badge Unlocked!",
+    "xpGained": "+{{xp}} XP Earned!"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "No internet connection. Changes saved locally.",
+    "permissionDenied": "Permission required to access this feature."
+  }
+}
+

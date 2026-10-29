@@ -1,11 +1,10 @@
 import {
   View, Text, TouchableOpacity, ScrollView, SafeAreaView,
-  ActivityIndicator, Modal, Alert, Image, TextInput,
+  Modal, Alert, Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { db, auth } from '../../lib/firebase';
+import { useState } from 'react';
+import { auth } from '../../lib/firebase';
 import { taskService } from '../../services/taskService';
 import { authService } from '../../services/authService';
 import { storageService } from '../../services/storageService';
@@ -19,21 +18,15 @@ import SkeletonLoader from '../../components/SkeletonLoader';
 import { useKidTasks } from '../../hooks/useTasks';
 import { useNotifications } from '../../hooks/useNotifications';
 import { offlineQueue } from '../../lib/offlineQueue';
+import { LanguageToggle, EmptyState } from '../../components/ui';
+import { useLanguage } from '../../hooks/useLanguage';
+import { tokens } from '../../constants/tokens';
 import type { Task } from '../../types';
 import Animated, { FadeInRight, FadeInLeft, Layout } from 'react-native-reanimated';
 
-interface Quest {
-  id: string;
-  title: string;
-  xp: number;
-  completed: boolean;
-  icon: string;
-  category: string;
-  description: string;
-}
-// Force Metro reload
 export default function MissionBoard() {
   const router = useRouter();
+  const { t } = useLanguage();
   const { kidProfile } = useAppStore();
   const kidName = kidProfile?.name || 'Kid';
 
@@ -161,49 +154,85 @@ export default function MissionBoard() {
       {/* Header Bar */}
       <View className="flex-row items-center justify-between px-6 py-4">
         <TouchableOpacity
-          className="w-10 h-10 bg-white rounded-xl items-center justify-center shadow-sm"
+          className="w-11 h-11 bg-white rounded-xl items-center justify-center shadow-sm"
           onPress={() => router.replace('/(auth)/login')}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel="Profile logo"
         >
           <KidQuestLogo width={24} height={24} showText={false} showTagline={false} />
         </TouchableOpacity>
 
-        <Text className="text-lg font-black text-[#000080]">
-          {kidName ? `${kidName}'s Quests` : 'Quest Map'}
+        <Text
+          maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+          className="text-lg font-black text-[#000080]"
+        >
+          {kidName ? `${kidName}'s Quests` : t('tasks.myQuests')}
         </Text>
 
-        <TouchableOpacity 
-          className="w-10 h-10 bg-white rounded-xl items-center justify-center shadow-sm relative"
-          onPress={() => router.push('/(kid)/notifications' as any)}
-        >
-          <Ionicons name="notifications-outline" size={20} color="#000080" />
-          {unreadCount > 0 && (
-            <View className="absolute -top-1 -right-1 bg-red-500 w-4 h-4 rounded-full items-center justify-center border border-white">
-              <Text className="text-white text-[8px] font-bold">{unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View className="flex-row items-center">
+          <LanguageToggle />
+          <TouchableOpacity 
+            className="w-11 h-11 bg-white rounded-xl items-center justify-center shadow-sm relative ml-2"
+            onPress={() => router.push('/(kid)/notifications' as any)}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={`Notifications, ${unreadCount} unread`}
+          >
+            <Ionicons name="notifications-outline" size={20} color="#000080" />
+            {unreadCount > 0 && (
+              <View className="absolute -top-1 -right-1 bg-red-500 w-4 h-4 rounded-full items-center justify-center border border-white">
+                <Text className="text-white text-[8px] font-bold">{unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView className="px-6 flex-1">
         {/* Quick Nav */}
         <View className="flex-row mb-4 space-x-2">
           <TouchableOpacity
-            className="flex-1 bg-white py-3 rounded-xl border border-sky-100 items-center mr-1"
+            className="flex-1 bg-white py-3 rounded-xl border border-sky-100 items-center mr-1 min-h-[48px] justify-center"
             onPress={() => router.push('/(kid)/vault')}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={t('rewards.title')}
           >
-            <Text className="text-sm font-bold text-[#000080]">💎 Vault</Text>
+            <Text
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+              className="text-sm font-bold text-[#000080]"
+            >
+              💎 Vault
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            className="flex-1 bg-white py-3 rounded-xl border border-sky-100 items-center mx-1"
+            className="flex-1 bg-white py-3 rounded-xl border border-sky-100 items-center mx-1 min-h-[48px] justify-center"
             onPress={() => router.push('/(kid)/stats')}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel="Stats"
           >
-            <Text className="text-sm font-bold text-[#000080]">🏅 Stats</Text>
+            <Text
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+              className="text-sm font-bold text-[#000080]"
+            >
+              🏅 Stats
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            className="flex-1 bg-white py-3 rounded-xl border border-sky-100 items-center ml-1"
+            className="flex-1 bg-white py-3 rounded-xl border border-sky-100 items-center ml-1 min-h-[48px] justify-center"
             onPress={() => router.push('/(kid)/focus-mode')}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel="Focus mode"
           >
-            <Text className="text-sm font-bold text-[#000080]">🎯 Focus</Text>
+            <Text
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+              className="text-sm font-bold text-[#000080]"
+            >
+              🎯 Focus
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -213,13 +242,11 @@ export default function MissionBoard() {
         {loading ? (
           <SkeletonLoader rows={5} rowHeight={72} style={{ marginTop: 8 }} />
         ) : quests.length === 0 && waitingApproval.length === 0 ? (
-          <View className="bg-white p-8 rounded-3xl mt-4 border border-sky-100 shadow-sm items-center">
-            <Text className="text-5xl mb-4">🎉</Text>
-            <Text className="text-xl font-bold text-[#000080] text-center">You did it all!</Text>
-            <Text className="text-sky-600 mt-2 text-center">
-              No more quests for today. Relax and enjoy!
-            </Text>
-          </View>
+          <EmptyState
+            icon="🎉"
+            title={t('tasks.emptyTitle')}
+            message={t('tasks.emptyDesc')}
+          />
         ) : (
           <View className="space-y-6 pb-20">
             {/* Yellow path */}
@@ -247,7 +274,10 @@ export default function MissionBoard() {
             {/* Waiting for Approval */}
             {waitingApproval.length > 0 && (
               <Animated.View entering={FadeInLeft.delay(200)}>
-                <Text className="text-lg font-bold text-[#000080] mt-4 ml-6 opacity-60">
+                <Text
+                  maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                  className="text-lg font-bold text-[#000080] mt-4 ml-6 opacity-60"
+                >
                   ⏳ Waiting for Parent...
                 </Text>
                 {waitingApproval.map((quest, index) => (
@@ -261,8 +291,16 @@ export default function MissionBoard() {
                     <View className="bg-white rounded-2xl p-4 shadow-sm border border-amber-200">
                       <View className="flex-row items-center justify-between">
                         <View className="flex-1">
-                          <Text className="text-base font-bold text-[#000080]">{quest.title}</Text>
-                          <Text className="text-sm text-amber-600 font-semibold mt-1">
+                          <Text
+                            maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                            className="text-base font-bold text-[#000080]"
+                          >
+                            {quest.title}
+                          </Text>
+                          <Text
+                            maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                            className="text-sm text-amber-600 font-semibold mt-1"
+                          >
                             ⏳ Sent to parent for approval
                           </Text>
                         </View>
@@ -293,20 +331,39 @@ export default function MissionBoard() {
               <TouchableOpacity
                 onPress={() => setProofModalVisible(false)}
                 disabled={submitting}
+                className="min-h-[44px] min-w-[44px] justify-center"
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel submission"
               >
-                <Text className="text-[#000080] font-bold text-lg">Cancel</Text>
+                <Text className="text-[#000080] font-bold text-lg">{t('common.cancel')}</Text>
               </TouchableOpacity>
-              <Text className="text-xl font-black text-[#000080]">📸 Submit Proof</Text>
+              <Text
+                maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                className="text-xl font-black text-[#000080]"
+              >
+                📸 {t('tasks.submitProof')}
+              </Text>
               <View className="w-16" />
             </View>
 
             {/* Quest Info */}
             {selectedQuest && (
               <View className="bg-white p-5 rounded-3xl border border-sky-100 shadow-sm mb-5">
-                <Text className="text-xl font-black text-[#000080]">{selectedQuest.title}</Text>
+                <Text
+                  maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                  className="text-xl font-black text-[#000080]"
+                >
+                  {selectedQuest.title}
+                </Text>
                 <Text className="text-base font-bold text-sky-600 mt-1">+{selectedQuest.xp} XP</Text>
                 {selectedQuest.description ? (
-                  <Text className="text-sm text-slate-500 mt-2">{selectedQuest.description}</Text>
+                  <Text
+                    maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                    className="text-sm text-slate-500 mt-2"
+                  >
+                    {selectedQuest.description}
+                  </Text>
                 ) : null}
               </View>
             )}
@@ -321,37 +378,52 @@ export default function MissionBoard() {
                     resizeMode="cover"
                   />
                   <TouchableOpacity
-                    className="p-3 items-center bg-slate-50 border-t border-slate-100"
+                    className="p-3 items-center bg-slate-50 border-t border-slate-100 min-h-[44px] justify-center"
                     onPress={() => setProofImageUri(null)}
                     disabled={submitting}
+                    accessible={true}
+                    accessibilityRole="button"
+                    accessibilityLabel="Change photo"
                   >
                     <Text className="text-slate-500 font-semibold text-sm">🔄 Change Photo</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
                 <View className="p-6">
-                  <Text className="text-sm font-bold text-[#000080] mb-4 text-center">
+                  <Text
+                    maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                    className="text-sm font-bold text-[#000080] mb-4 text-center"
+                  >
                     Attach proof of your completed quest
                   </Text>
                   <View className="flex-row space-x-3">
                     <TouchableOpacity
-                      className="flex-1 bg-sky-50 border border-sky-200 rounded-2xl py-5 items-center mr-2"
+                      className="flex-1 bg-sky-50 border border-sky-200 rounded-2xl py-5 items-center mr-2 min-h-[64px]"
                       onPress={takePhotoWithCamera}
                       disabled={submitting}
+                      accessible={true}
+                      accessibilityRole="button"
+                      accessibilityLabel="Take Photo with Camera"
                     >
                       <Text className="text-3xl mb-2">📷</Text>
                       <Text className="text-sm font-bold text-[#000080]">Take Photo</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      className="flex-1 bg-purple-50 border border-purple-200 rounded-2xl py-5 items-center ml-2"
+                      className="flex-1 bg-purple-50 border border-purple-200 rounded-2xl py-5 items-center ml-2 min-h-[64px]"
                       onPress={pickImageFromGallery}
                       disabled={submitting}
+                      accessible={true}
+                      accessibilityRole="button"
+                      accessibilityLabel="Choose Photo From Gallery"
                     >
                       <Text className="text-3xl mb-2">🖼️</Text>
                       <Text className="text-sm font-bold text-[#000080]">From Gallery</Text>
                     </TouchableOpacity>
                   </View>
-                  <Text className="text-xs text-slate-400 mt-3 text-center">
+                  <Text
+                    maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                    className="text-xs text-slate-400 mt-3 text-center"
+                  >
                     Optional — tap "Quick Submit" below to skip photo proof
                   </Text>
                 </View>
@@ -373,11 +445,14 @@ export default function MissionBoard() {
 
             {/* Submit Button */}
             <TouchableOpacity
-              className={`p-5 rounded-2xl items-center shadow-lg ${
+              className={`p-5 rounded-2xl items-center shadow-lg min-h-[54px] justify-center ${
                 submitting ? 'bg-green-400' : 'bg-green-500'
               }`}
               onPress={handleSubmitProof}
               disabled={submitting}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={proofImageUri ? 'Submit with Photo' : 'Quick Submit'}
             >
               <Text className="text-white font-black text-lg tracking-wide">
                 {submitting

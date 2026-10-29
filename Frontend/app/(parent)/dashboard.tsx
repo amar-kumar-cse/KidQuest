@@ -10,9 +10,13 @@ import type { Task } from '../../types';
 import Animated, { FadeInUp, Layout } from 'react-native-reanimated';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useChatStore } from '../../store/useChatStore';
+import { LanguageToggle, EmptyState } from '../../components/ui';
+import { useLanguage } from '../../hooks/useLanguage';
+import { tokens } from '../../constants/tokens';
 
 export default function ParentDashboard() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [linkedKids, setLinkedKids] = useState<any[]>([]);
   const [selectedKidUid, setSelectedKidUid] = useState<string | null>(null);
   const [linkedKidsLoading, setLinkedKidsLoading] = useState(true);
@@ -38,7 +42,6 @@ export default function ParentDashboard() {
     const parentUid = auth.currentUser?.uid;
     if (!parentUid) return;
 
-    // 1. Fetch linked kids from parent profile
     const fetchLinkedKidsXp = async () => {
       try {
         const parentSnap = await getDoc(doc(db, 'Users', parentUid));
@@ -53,8 +56,6 @@ export default function ParentDashboard() {
           return;
         }
 
-        // 2. Set up a listener for only the linked kids
-        // Firestore 'in' query works up to 10 items, which is perfect for linked kids
         const qKids = query(
           collection(db, 'Users'),
           where('uid', 'in', linkedKidIds)
@@ -159,13 +160,27 @@ export default function ParentDashboard() {
         {/* Header */}
         <View className="flex-row justify-between items-center mb-8">
           <View>
-            <Text className="text-sm font-semibold text-slate-500 uppercase tracking-widest">Control Center</Text>
-            <Text className="text-3xl font-extrabold text-slate-800 mt-1">Dashboard</Text>
+            <Text
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+              className="text-sm font-semibold text-slate-500 uppercase tracking-widest"
+            >
+              {t('nav.dashboard')}
+            </Text>
+            <Text
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+              className="text-3xl font-extrabold text-slate-800 mt-1"
+            >
+              KidQuest
+            </Text>
           </View>
-          <View className="flex-row">
+          <View className="flex-row items-center">
+            <LanguageToggle />
             <TouchableOpacity 
-              className="w-12 h-12 bg-white rounded-full items-center justify-center border border-slate-100 mr-2 relative"
+              className="w-12 h-12 bg-white rounded-full items-center justify-center border border-slate-100 ml-2 mr-2 relative"
               onPress={() => router.push('/(parent)/notifications' as any)}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={`Notifications, ${unreadCount} unread`}
             >
               <Text className="text-xl">🔔</Text>
               {unreadCount > 0 && (
@@ -177,6 +192,9 @@ export default function ParentDashboard() {
             <TouchableOpacity 
               className="w-12 h-12 bg-white rounded-full items-center justify-center border border-slate-100 mr-2 relative"
               onPress={() => router.push('/(parent)/messages' as any)}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={`Messages, ${totalUnreadChatCount} unread`}
             >
               <Text className="text-xl">💬</Text>
               {totalUnreadChatCount > 0 && (
@@ -188,6 +206,9 @@ export default function ParentDashboard() {
             <TouchableOpacity 
               className="w-12 h-12 bg-indigo-100 rounded-full items-center justify-center border border-indigo-200"
               onPress={() => router.push('/(parent)/settings')}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={t('nav.settings')}
             >
               <Text className="text-lg">⚙️</Text>
             </TouchableOpacity>
@@ -197,9 +218,24 @@ export default function ParentDashboard() {
         {/* Analytics Cards */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-8">
           <View className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mr-4 min-w-[140px]">
-            <Text className="text-slate-500 font-semibold mb-1">Pending Review</Text>
-            <Text className="text-3xl font-bold text-amber-600">{pendingApprovals.length}</Text>
-            <Text className="text-xs text-slate-400 mt-2 font-medium">Tasks awaiting approval</Text>
+            <Text
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+              className="text-slate-500 font-semibold mb-1"
+            >
+              {t('tasks.pendingApproval')}
+            </Text>
+            <Text
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+              className="text-3xl font-bold text-amber-600"
+            >
+              {pendingApprovals.length}
+            </Text>
+            <Text
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+              className="text-xs text-slate-400 mt-2 font-medium"
+            >
+              Tasks awaiting review
+            </Text>
           </View>
           
           {linkedKids.map((kid, index) => (
@@ -210,16 +246,32 @@ export default function ParentDashboard() {
             >
               <View className="flex-row items-center mb-1">
                 <Text className="text-2xl mr-2">{kid.avatarEmoji || '👦'}</Text>
-                <Text className="text-indigo-200 font-semibold">{kid.name}'s XP</Text>
+                <Text
+                  maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                  className="text-indigo-200 font-semibold"
+                >
+                  {kid.name}'s XP
+                </Text>
               </View>
-              <Text className="text-3xl font-bold text-white">
+              <Text
+                maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                className="text-3xl font-bold text-white"
+              >
                 {kid.totalXp?.toLocaleString() || 0}
               </Text>
               <TouchableOpacity 
-                className="mt-3 bg-indigo-500 py-1.5 px-3 rounded-lg self-start"
+                className="mt-3 bg-indigo-500 py-2 px-3 rounded-lg self-start min-h-[44px] justify-center"
                 onPress={() => router.push('/(parent)/rewards')}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={`Manage rewards for ${kid.name}`}
               >
-                <Text className="text-white text-xs font-bold tracking-wide">Manage Rewards →</Text>
+                <Text
+                  maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                  className="text-white text-xs font-bold tracking-wide"
+                >
+                  Manage Rewards →
+                </Text>
               </TouchableOpacity>
             </Animated.View>
           ))}
@@ -246,8 +298,11 @@ export default function ParentDashboard() {
                 </View>
               </View>
               <TouchableOpacity 
-                className="bg-amber-400 py-3 px-4 rounded-xl items-center shadow-sm w-full"
+                className="bg-amber-400 py-3 px-4 rounded-xl items-center shadow-sm w-full min-h-[44px] justify-center"
                 onPress={() => router.push('/(parent)/settings')}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel="Get started in Settings"
               >
                 <Text className="text-indigo-900 font-black text-sm">Get Started →</Text>
               </TouchableOpacity>
@@ -256,7 +311,12 @@ export default function ParentDashboard() {
         </ScrollView>
 
         {/* Action Items (Smart Reward Logic) */}
-        <Text className="text-lg font-bold text-slate-800 mb-4">Pending Approvals</Text>
+        <Text
+          maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+          className="text-lg font-bold text-slate-800 mb-4"
+        >
+          {t('tasks.pendingApproval')}
+        </Text>
         
         {loading ? (
           <SkeletonLoader rows={3} rowHeight={88} style={{ paddingHorizontal: 0, marginBottom: 8 }} />
@@ -277,12 +337,25 @@ export default function ParentDashboard() {
                     <View className="flex-1">
                       <View className="flex-row items-center mb-1">
                         <View className="w-2 h-2 rounded-full bg-amber-500 mr-2" />
-                        <Text className="text-xs font-bold text-slate-500">
+                        <Text
+                          maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                          className="text-xs font-bold text-slate-500"
+                        >
                           {getCategoryIcon(task.category)} {childName} • {timeString}
                         </Text>
                       </View>
-                      <Text className="text-lg font-bold text-slate-800">{task.title}</Text>
-                      <Text className="text-sm font-semibold text-indigo-600 mt-1">Reward: {task.xp} XP</Text>
+                      <Text
+                        maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                        className="text-lg font-bold text-slate-800"
+                      >
+                        {task.title}
+                      </Text>
+                      <Text
+                        maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+                        className="text-sm font-semibold text-indigo-600 mt-1"
+                      >
+                        Reward: {task.xp} XP
+                      </Text>
                     </View>
 
                     <View className="flex-row space-x-2">
@@ -290,6 +363,9 @@ export default function ParentDashboard() {
                         className="bg-red-50 w-12 h-12 rounded-xl items-center justify-center border border-red-100"
                         onPress={() => handleReject(task)}
                         disabled={actionLoading === task.id}
+                        accessible={true}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Reject quest ${task.title}`}
                       >
                         <Text className="text-red-500 font-bold">{actionLoading === task.id ? '...' : '✗'}</Text>
                       </TouchableOpacity>
@@ -297,6 +373,9 @@ export default function ParentDashboard() {
                         className="bg-green-500 w-12 h-12 rounded-xl items-center justify-center shadow-sm"
                         onPress={() => handleApprove(task)}
                         disabled={actionLoading === task.id}
+                        accessible={true}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Approve quest ${task.title}`}
                       >
                         <Text className="text-white font-bold">{actionLoading === task.id ? '...' : '✓'}</Text>
                       </TouchableOpacity>
@@ -306,8 +385,11 @@ export default function ParentDashboard() {
                   {/* Proof Link */}
                   {task.proofUrl ? (
                     <TouchableOpacity 
-                      className="mt-3 bg-sky-50 p-3 rounded-xl border border-sky-100 flex-row items-center"
+                      className="mt-3 bg-sky-50 p-3 rounded-xl border border-sky-100 flex-row items-center min-h-[44px]"
                       onPress={() => Linking.openURL(task.proofUrl!)}
+                      accessible={true}
+                      accessibilityRole="link"
+                      accessibilityLabel="View submitted proof photo"
                     >
                       <Text className="text-sky-600 mr-2">🔗</Text>
                       <Text className="text-sky-700 font-semibold text-sm flex-1" numberOfLines={1}>
@@ -324,9 +406,11 @@ export default function ParentDashboard() {
               );
             })}
             {pendingApprovals.length === 0 && (
-              <Animated.Text entering={FadeInUp} className="text-slate-400 text-center py-4 font-medium">
-                All caught up! No tasks pending approval.
-              </Animated.Text>
+              <EmptyState
+                icon="🎉"
+                title={t('common.done')}
+                message="All caught up! No tasks pending approval."
+              />
             )}
           </View>
         )}
@@ -334,27 +418,51 @@ export default function ParentDashboard() {
         {/* Quick Nav */}
         <View className="flex-row mb-4 space-x-3">
           <TouchableOpacity
-            className="flex-1 bg-white p-4 rounded-2xl border border-slate-100 items-center mr-1"
+            className="flex-1 bg-white p-4 rounded-2xl border border-slate-100 items-center mr-1 min-h-[54px] justify-center"
             onPress={() => router.push('/(parent)/analytics')}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={t('nav.analytics')}
           >
             <Text className="text-2xl mb-1">📊</Text>
-            <Text className="text-indigo-600 font-bold text-sm">Analytics</Text>
+            <Text
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+              className="text-indigo-600 font-bold text-sm"
+            >
+              {t('nav.analytics')}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            className="flex-1 bg-white p-4 rounded-2xl border border-slate-100 items-center ml-1"
+            className="flex-1 bg-white p-4 rounded-2xl border border-slate-100 items-center ml-1 min-h-[54px] justify-center"
             onPress={() => router.push('/(parent)/rewards')}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={t('nav.rewards')}
           >
             <Text className="text-2xl mb-1">🏆</Text>
-            <Text className="text-indigo-600 font-bold text-sm">Rewards</Text>
+            <Text
+              maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+              className="text-indigo-600 font-bold text-sm"
+            >
+              {t('nav.rewards')}
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* Quick Actions */}
         <TouchableOpacity 
-          className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 items-center border-dashed mb-4"
+          className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 items-center border-dashed mb-4 min-h-[54px] justify-center"
           onPress={() => router.push('/(parent)/create-task')}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={t('tasks.createTask')}
         >
-          <Text className="text-indigo-600 font-bold text-lg">+ Assign New Task</Text>
+          <Text
+            maxFontSizeMultiplier={tokens.typography.maxFontSizeMultiplier}
+            className="text-indigo-600 font-bold text-lg"
+          >
+            + {t('tasks.createTask')}
+          </Text>
         </TouchableOpacity>
 
       </ScrollView>

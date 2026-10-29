@@ -9,17 +9,26 @@ import Animated, {
   interpolate,
   Easing,
 } from 'react-native-reanimated';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { tokens } from '../../constants/tokens';
 
 // ─── Single Skeleton Block ────────────────────────────────────────────
 
-interface SkeletonProps {
+export interface SkeletonProps {
   width?: number | `${number}%`;
   height?: number;
   borderRadius?: number;
   style?: ViewStyle;
 }
 
-export function SkeletonBlock({ width = '100%', height = 16, borderRadius = 8, style }: SkeletonProps) {
+export function SkeletonBlock({
+  width = '100%',
+  height = 16,
+  borderRadius = tokens.radii.sm,
+  style,
+}: SkeletonProps) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const shimmer = useSharedValue(0);
 
   useEffect(() => {
@@ -28,10 +37,10 @@ export function SkeletonBlock({ width = '100%', height = 16, borderRadius = 8, s
         withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
         withTiming(0, { duration: 900, easing: Easing.inOut(Easing.ease) })
       ),
-      -1, // infinite
+      -1,
       false
     );
-  }, []);
+  }, [shimmer]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: interpolate(shimmer.value, [0, 1], [0.35, 0.75]),
@@ -39,8 +48,16 @@ export function SkeletonBlock({ width = '100%', height = 16, borderRadius = 8, s
 
   return (
     <Animated.View
+      accessible={true}
+      accessibilityRole="none"
+      accessibilityLabel="Loading content"
       style={[
-        { width, height, borderRadius, backgroundColor: '#cbd5e1' },
+        {
+          width,
+          height,
+          borderRadius,
+          backgroundColor: isDark ? tokens.colors.dark.borderStrong : tokens.colors.light.borderStrong,
+        },
         animatedStyle,
         style,
       ]}
@@ -48,11 +65,22 @@ export function SkeletonBlock({ width = '100%', height = 16, borderRadius = 8, s
   );
 }
 
+// Alias for convenience
+export const Skeleton = SkeletonBlock;
+
 // ─── Task Card Skeleton ───────────────────────────────────────────────
 
 export function TaskCardSkeleton() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
   return (
-    <View style={styles.card}>
+    <View
+      style={[
+        styles.card,
+        isDark ? styles.cardDark : styles.cardLight,
+      ]}
+    >
       <View style={styles.row}>
         <SkeletonBlock width={40} height={40} borderRadius={12} />
         <View style={{ flex: 1, marginLeft: 12, gap: 8 }}>
@@ -69,7 +97,7 @@ export function TaskCardSkeleton() {
 
 export function DashboardSkeleton() {
   return (
-    <View style={{ gap: 16, padding: 24 }}>
+    <View style={{ gap: 16, padding: tokens.spacing.xl }}>
       {/* Header */}
       <SkeletonBlock width="55%" height={28} borderRadius={8} />
       <SkeletonBlock width="35%" height={14} borderRadius={8} />
@@ -93,7 +121,7 @@ export function DashboardSkeleton() {
 
 export function ProfileSkeleton() {
   return (
-    <View style={{ gap: 16, padding: 24, alignItems: 'center' }}>
+    <View style={{ gap: 16, padding: tokens.spacing.xl, alignItems: 'center' }}>
       <SkeletonBlock width={80} height={80} borderRadius={40} />
       <SkeletonBlock width="50%" height={20} borderRadius={8} />
       <SkeletonBlock width="75%" height={14} borderRadius={8} />
@@ -109,12 +137,31 @@ export function ProfileSkeleton() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#f1f5f9',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: tokens.radii.xl,
+    padding: tokens.spacing.lg,
+  },
+  cardLight: {
+    backgroundColor: tokens.colors.light.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: tokens.colors.light.border,
+  },
+  cardDark: {
+    backgroundColor: tokens.colors.dark.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: tokens.colors.dark.border,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
   },
 });
+
+export const SkeletonLoader = {
+  SkeletonBlock,
+  Skeleton,
+  TaskCardSkeleton,
+  DashboardSkeleton,
+  ProfileSkeleton,
+};
+
+export default SkeletonLoader;
