@@ -26,3 +26,4 @@ appId: com.nowicstudio.kidquest
 
 - assertVisible: "KidQuest"
 - assertVisible: "Manage Rewards"
+

@@ -321,6 +321,23 @@ service cloud.firestore {
     // =====================================================================
     // 9. SCHOOLS & CLASSES (School Portal): Schools/{schoolId}
     // =====================================================================
+    // Direct root Classes collection (School Portal): Classes/{classId}
+    match /Classes/{classId} {
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.teacherUid == request.auth.uid ||
+        (isKid() && request.auth.uid in resource.data.studentUids)
+      );
+
+      allow create: if isAdmin() || (
+        isTeacher() && request.resource.data.teacherUid == request.auth.uid
+      );
+
+      allow update, delete: if isAdmin() || (
+        isTeacher() && resource.data.teacherUid == request.auth.uid
+      );
+    }
+
     match /Schools/{schoolId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();

@@ -55,3 +55,4 @@ describe('ErrorBoundary', () => {
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 });
+

@@ -29,3 +29,4 @@ appId: com.nowicstudio.kidquest
 
 - assertVisible: "QUEST APPROVED! 🎉"
 - tapOn: "Claim Rewards"
+

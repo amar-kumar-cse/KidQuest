@@ -52,3 +52,4 @@ maestro test .maestro/05_offline_sync.yaml
 # Run continuously in watch mode while developing
 maestro test .maestro/02_task_create.yaml --continuous
 ```
+

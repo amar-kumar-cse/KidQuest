@@ -30,3 +30,4 @@ appId: com.nowicstudio.kidquest
     timeout: 12000
 
 - assertVisible: "KidQuest"
+

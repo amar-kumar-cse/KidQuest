@@ -31,3 +31,4 @@ appId: com.nowicstudio.kidquest
     timeout: 8000
 
 - assertVisible: "Complete Math Practice Sheet"
+

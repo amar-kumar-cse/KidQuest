@@ -87,6 +87,43 @@ beforeEach(async () => {
       updatedAt: new Date(),
     });
 
+    // 4. School & Teacher Fixtures (Phase 10 Tenant Isolation)
+    await setDoc(doc(db, 'Users', 'teacher_1'), {
+      role: 'teacher',
+      name: 'Ms. Frizzle',
+      email: 'frizzle@school.edu',
+      teacherOf: ['kid_1'],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await setDoc(doc(db, 'Users', 'teacher_2'), {
+      role: 'teacher',
+      name: 'Mr. Ratburn',
+      email: 'ratburn@school.edu',
+      teacherOf: ['kid_2'],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await setDoc(doc(db, 'Classes', 'class_science_4a'), {
+      name: 'Grade 4 Science',
+      subject: 'Science',
+      grade: '4',
+      teacherUid: 'teacher_1',
+      studentUids: ['kid_1'],
+      createdAt: new Date(),
+    });
+
+    await setDoc(doc(db, 'Classes', 'class_history_5b'), {
+      name: 'Grade 5 History',
+      subject: 'History',
+      grade: '5',
+      teacherUid: 'teacher_2',
+      studentUids: ['kid_2'],
+      createdAt: new Date(),
+    });
+
     // 3. Baseline Task for Alice
     await setDoc(doc(db, 'Tasks', 'task_101'), {
       title: 'Clean Bedroom',
@@ -251,5 +288,72 @@ describe('KidQuest Authoritative Security Rules Test Suite (Phase 3)', () => {
     const photoRef = strangerStorage.ref('task-photos/task_101/proof.jpg');
     // Stranger is not party to task_101
     await assertFails(photoRef.getBytes());
+  });
+  // =========================================================================
+  // 5. SCHOOL PORTAL: TEACHER & CLASS MULTI-TENANT ISOLATION (PHASE 10)
+  // =========================================================================
+  describe('Phase 10: School Portal Teacher & Class Tenant Isolation', () => {
+    test('[PASS] Teacher can read their own assigned class document', async () => {
+      const db = testEnv.authenticatedContext('teacher_1', { role: 'teacher' }).firestore();
+      await assertSucceeds(getDoc(doc(db, 'Classes', 'class_science_4a')));
+    });
+
+    test('[FAIL - TENANT ISOLATION] Teacher CANNOT read another teacher\'s class', async () => {
+      const db = testEnv.authenticatedContext('teacher_1', { role: 'teacher' }).firestore();
+      await assertFails(getDoc(doc(db, 'Classes', 'class_history_5b')));
+    });
+
+    test('[PASS] Teacher can read student profile enrolled in their class', async () => {
+      const db = testEnv.authenticatedContext('teacher_1', { role: 'teacher' }).firestore();
+      await assertSucceeds(getDoc(doc(db, 'Users', 'kid_1')));
+    });
+
+    test('[FAIL - STUDENT PRIVACY] Teacher CANNOT read student profile from another class', async () => {
+      const db = testEnv.authenticatedContext('teacher_1', { role: 'teacher' }).firestore();
+      await assertFails(getDoc(doc(db, 'Users', 'kid_2')));
+    });
+
+    test('[PASS] Teacher CAN create/assign homework task to student in their class', async () => {
+      const db = testEnv.authenticatedContext('teacher_1', { role: 'teacher' }).firestore();
+      await assertSucceeds(
+        setDoc(doc(db, 'Tasks', 'task_school_101'), {
+          title: 'Solar System Diorama',
+          category: 'homework',
+          difficulty: 'medium',
+          xp: 75,
+          assignedToUid: 'kid_1',
+          parentId: 'teacher_1',
+          status: 'pending',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+      );
+    });
+
+    test('[FAIL] Teacher CANNOT assign task to student of another teacher', async () => {
+      const db = testEnv.authenticatedContext('teacher_1', { role: 'teacher' }).firestore();
+      await assertFails(
+        setDoc(doc(db, 'Tasks', 'task_unauthorized_202'), {
+          title: 'Unauthorized Assignment',
+          category: 'homework',
+          difficulty: 'hard',
+          xp: 100,
+          assignedToUid: 'kid_2',
+          parentId: 'teacher_1',
+          status: 'pending',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+      );
+    });
+
+    test('[FAIL] Teacher CANNOT modify or delete another teacher\'s class', async () => {
+      const db = testEnv.authenticatedContext('teacher_1', { role: 'teacher' }).firestore();
+      await assertFails(
+        updateDoc(doc(db, 'Classes', 'class_history_5b'), {
+          name: 'Hacked Class',
+        })
+      );
+    });
   });
 });

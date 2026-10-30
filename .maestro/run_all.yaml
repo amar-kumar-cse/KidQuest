@@ -7,3 +7,4 @@ appId: com.nowicstudio.kidquest
 - runFlow: 03_task_submit.yaml
 - runFlow: 04_task_approve.yaml
 - runFlow: 05_offline_sync.yaml
+

@@ -25,3 +25,4 @@ This document lists all required GitHub Repository Secrets to run the automated 
    - `eas-build.yml`: Automatically triggers EAS **production build** and submits to Google Play Console and Apple TestFlight.
 3. **Manual Trigger (`workflow_dispatch`)**:
    - Build preview or production builds on demand from the GitHub Actions tab.
+
