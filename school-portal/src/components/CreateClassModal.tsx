@@ -112,3 +112,4 @@ export const CreateClassModal: React.FC<Props> = ({ isOpen, onClose, onSave }) =
     </div>
   );
 };
+
