@@ -178,3 +178,4 @@ KidQuest COPPA और भारत के DPDP Act के सभी नियम
    - PEGI: **PEGI 3**
    - USK: **USK 0**
    - ClassInd: **L (General Audience)**
+

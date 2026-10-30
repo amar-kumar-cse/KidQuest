@@ -103,3 +103,4 @@ eas build --platform ios --profile production
   - Day 5: 100%
 - [ ] **Emergency Rollback**:
   - If a critical bug is detected during staged rollout, halt the rollout in Google Play Console immediately and push a hotfix build via EAS with patch version bump.
+
